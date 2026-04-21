@@ -338,10 +338,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateSharedMediaItem = async (id: string, updates: Partial<SharedMediaItem>) => {
     const supabase = createClient()
+
+    const mapStatusToDb = (status?: string) => {
+    if (status === "will-watch") return "planned"
+    if (status === "watching") return "watching"
+    if (status === "watched") return "watched"
+    if (status === "dropped") return "dropped"
+    return "planned"
+  }
+
     const { error } = await supabase
       .from("shared_media")
       .update({
-        status: updates.status,
+        status: mapStatusToDb(updates.status),
         user_rating: updates.rating || null,
         current_season: updates.currentSeason || null,
         current_episode: updates.currentEpisode || null,
@@ -370,10 +379,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
     const supabase = createClient()
+
+    const mapGameStatusToDb = (status?: string) => {
+    if (status === "planning") return "planned"
+    if (status === "playing") return "playing"
+    if (status === "completed") return "completed"
+    if (status === "dropped") return "dropped"
+    return "planned"
+  }
+
     const { error } = await supabase
       .from("shared_games")
       .update({
-        status: updates.status,
+        status: mapGameStatusToDb(updates.status),
         user_rating: updates.rating || null,
         platforms: updates.platforms || null,
         notes: updates.note || null,
