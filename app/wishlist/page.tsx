@@ -377,8 +377,7 @@ export default function WishlistPage() {
           <CardContent className="p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
             <p className="text-sm">
-              <strong>Совет:</strong> Когда вы резервируете подарок партнёра, они увидят что он
-              &quot;занят&quot;, но не кем именно - сюрприз сохранится!
+              <strong>Подсказка:</strong> Сюда кидаем чо хочем
             </p>
           </CardContent>
         </Card>

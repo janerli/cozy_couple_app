@@ -1,7 +1,7 @@
 "use client"
 
 import { UserAvatar } from "@/components/user-avatar"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Sparkles, Play, Heart, Clock, Film, Plus, Star, ListVideo, Gamepad2, Trophy } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +17,11 @@ const containerVariants = {
       staggerChildren: 0.1,
     },
   },
+}
+
+const USER_IDS = {
+  YOU: "11111111-1111-1111-1111-111111111111",
+  PARTNER: "22222222-2222-2222-2222-222222222222",
 }
 
 const itemVariants = {
@@ -65,6 +70,47 @@ export default function HomePage() {
   const [showMediaPick, setShowMediaPick] = useState(false)
   const [randomGamePick, setRandomGamePick] = useState<SharedGameItem | null>(null)
   const [showGamePick, setShowGamePick] = useState(false)
+
+  const isPartner = activeUser.id === USER_IDS.PARTNER  // 22222222-2222-2222-2222-222222222222
+  const isYou = activeUser.id === USER_IDS.YOU          // 11111111-1111-1111-1111-111111111111
+  
+  // 🔥 Список комплиментов для партнёра
+  const compliments = [
+    "я тебя люблю",
+    "ты очень красивый",
+    "ты самый лучший",
+    "ты самый милый",
+    "ты мой самый любимый котёночек",
+    "ты у меня самый красивый",
+    "ты у меня самый хороший",
+    "ты лучше всех",
+    "желаю тебе хорошего дня"
+  ]
+  
+  const [compliment, setCompliment] = useState(compliments[0])
+  const [activity, setActivity] = useState("посмотреть что-то уютное")
+  
+  // 🔥 Устанавливаем случайные значения только на клиенте
+  useEffect(() => {
+    // Для партнёра - случайный комплимент
+    if (isPartner) {
+      const randomIndex = Math.floor(Math.random() * compliments.length)
+      setCompliment(compliments[randomIndex])
+    }
+    
+    // Для тебя - случайная активность
+    if (isYou) {
+      const activities = [
+        "посмотреть что-то уютное",
+        "открыть новый сериал",
+        "пересмотреть любимое",
+        "найти новое аниме",
+        "устроить киномарафон",
+        "поиграть вместе",
+      ]
+      setActivity(activities[Math.floor(Math.random() * activities.length)])
+    }
+  }, [activeUser.id])
 
   // Get shared items that are planned (will-watch)
   const sharedPlannedMedia = useMemo(() => {
@@ -130,30 +176,39 @@ export default function HomePage() {
     >
       {/* Greeting Section */}
       <motion.section variants={itemVariants} className="text-center py-8">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
-          className="inline-block mb-4"
-        >
-          {activeUser.avatar?.startsWith('http') ? (
-  <img 
-    src={activeUser.avatar} 
-    alt={activeUser.name}
-    className="w-16 h-16 rounded-full object-cover"
-  />
-) : (
-  <span className="text-6xl">{activeUser.avatar || '🦊'}</span>
-)}
-        </motion.div>
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-          {getGreeting()}, {activeUser.name}!
-        </h1>
-        <p className="text-muted-foreground text-lg">
-          Сегодня такой уютный день для...{" "}
-          <span className="text-primary font-medium">{getActivity()}</span>
-        </p>
-      </motion.section>
+  <motion.div
+    initial={{ scale: 0 }}
+    animate={{ scale: 1 }}
+    transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
+    className="inline-block mb-4"
+  >
+    <UserAvatar avatar={activeUser.avatar} name={activeUser.name} size="xl" />
+  </motion.div>
+  
+  {isPartner ? (
+    // 🔥 Приветствие для партнёра
+    <>
+      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+        Привет, котя! 
+      </h1>
+      <p className="text-muted-foreground text-lg">
+        <span className="text-primary font-medium">{compliment}</span>
+        {" "}❤️
+      </p>
+    </>
+  ) : (
+    // 🔥 Приветствие для тебя
+    <>
+      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+        Привет, {activeUser.name}!
+      </h1>
+      <p className="text-muted-foreground text-lg">
+        Сегодня такой уютный день для...{" "}
+        <span className="text-primary font-medium">{activity}</span>
+      </p>
+    </>
+  )}
+</motion.section>
 
       {/* Random Pickers Row */}
       <div className="grid md:grid-cols-2 gap-6">
