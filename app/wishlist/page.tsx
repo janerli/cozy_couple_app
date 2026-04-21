@@ -1,5 +1,6 @@
 "use client"
 
+import { UserAvatar } from "@/components/user-avatar"
 import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -248,12 +249,10 @@ function WishlistCard({
             </div>
           )}
 
-          {/* Owner badge */}
-          <div className="absolute top-2 left-2">
-            <span className="w-8 h-8 bg-card/90 rounded-full flex items-center justify-center text-sm">
-              {owner?.avatar}
-            </span>
-          </div>
+{/* Owner badge */}
+<div className="absolute top-2 left-2">
+  <UserAvatar avatar={owner?.avatar || ''} name={owner?.name || ''} size="md" className="bg-card/90" />
+</div>
 
           {/* Priority badge */}
           <div className="absolute top-2 right-2">
@@ -443,20 +442,20 @@ export default function WishlistPage() {
           Все
         </button>
         {users.map((user) => (
-          <button
-            key={user.id}
-            onClick={() => setUserFilter(user.id as UserFilter)}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all",
-              userFilter === user.id
-                ? "bg-accent text-accent-foreground"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted"
-            )}
-          >
-            <span>{user.avatar}</span>
-            {user.name}
-          </button>
-        ))}
+  <button
+    key={user.id}
+    onClick={() => setUserFilter(user.id as UserFilter)}
+    className={cn(
+      "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all",
+      userFilter === user.id
+        ? "bg-accent text-accent-foreground"
+        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+    )}
+  >
+    <UserAvatar avatar={user.avatar || ''} name={user.name} size="sm" />
+    {user.name}
+  </button>
+))}
       </motion.div>
 
       {/* Wishlist Grid */}

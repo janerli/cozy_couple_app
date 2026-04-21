@@ -1,5 +1,6 @@
 "use client"
 
+import { UserAvatar } from "@/components/user-avatar"
 import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
@@ -14,11 +15,11 @@ import {
   Edit2, 
   ArrowUpDown,
   X,
-  Heart
+  Search,
+  Loader2
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useApp, SharedGameItem, GamePlatform } from "@/lib/app-context"
+import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
 type Tab = "planning" | "playing" | "completed" | "dropped"
@@ -87,38 +89,169 @@ const defaultCovers = [
   "https://images.unsplash.com/photo-1493711662062-fa541f7f2f19?w=300&h=400&fit=crop",
 ]
 
+// Тип для результатов поиска RAWG
+interface RAWGGame {
+  id: number
+  name: string
+  background_image: string
+  description_raw?: string
+  released?: string
+  platforms?: { platform: { id: number; name: string } }[]
+  genres?: { id: number; name: string }[]
+}
+
 function AddGameDialog() {
   const { addSharedGameItem, activeUserId } = useApp()
   const [open, setOpen] = useState(false)
+  
+  // Поиск
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<RAWGGame[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  
+  // Форма
   const [formData, setFormData] = useState({
     title: "",
     cover: "",
     description: "",
     platforms: [] as GamePlatform[],
     genres: "",
+    externalId: "",
   })
 
-  const handleSubmit = () => {
+  // Функция поиска
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query)
+    
+    if (query.length < 2) {
+      setSearchResults([])
+      setShowResults(false)
+      return
+    }
+
+    setIsSearching(true)
+    setShowResults(true)
+    
+    try {
+      const res = await fetch(`/api/search-game?query=${encodeURIComponent(query)}`)
+      const data = await res.json()
+      setSearchResults(data.results || [])
+    } catch (error) {
+      console.error("Search failed:", error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Выбор игры из результатов поиска
+  const handleSelectGame = (game: RAWGGame) => {
+    // Маппинг платформ RAWG на наши типы
+    const mappedPlatforms: GamePlatform[] = []
+    if (game.platforms) {
+      game.platforms.forEach(p => {
+        const name = p.platform.name.toLowerCase()
+        if (name.includes("pc")) mappedPlatforms.push("pc")
+        else if (name.includes("playstation")) mappedPlatforms.push("playstation")
+        else if (name.includes("xbox")) mappedPlatforms.push("xbox")
+        else if (name.includes("nintendo")) mappedPlatforms.push("nintendo")
+        else if (name.includes("ios") || name.includes("android")) mappedPlatforms.push("mobile")
+      })
+    }
+    
+    const uniquePlatforms = [...new Set(mappedPlatforms)]
+    
+    setFormData({
+      ...formData,
+      title: game.name,
+      cover: game.background_image || "",
+      description: game.description_raw || "",
+      platforms: uniquePlatforms.length > 0 ? uniquePlatforms : ["pc"],
+      genres: game.genres?.map(g => g.name).join(", ") || "",
+      externalId: game.id.toString(),
+    })
+    
+    setSearchQuery(game.name)
+    setShowResults(false)
+    setSearchResults([])
+  }
+
+  // Сохранение в Supabase
+  const saveToSupabase = async () => {
+    const supabase = createClient()
+    
+    // 1. Сохраняем контент
+    const { data: content, error: contentError } = await supabase
+      .from("content")
+      .upsert({
+        external_id: formData.externalId || Date.now().toString(),
+        content_type: "game",
+        title_ru: formData.title,
+        title_en: formData.title,
+        poster_url: formData.cover || defaultCovers[Math.floor(Math.random() * defaultCovers.length)],
+        description: formData.description || null,
+        year: null,
+        platforms: formData.platforms,
+        genres: formData.genres ? formData.genres.split(",").map(g => g.trim()) : [],
+        updated_at: new Date(),
+      }, { onConflict: "external_id, content_type" })
+      .select()
+      .single()
+
+    if (contentError) {
+      console.error("Content save error:", contentError)
+      throw contentError
+    }
+
+    // 2. Сохраняем в общий список игр
+    const { error: sharedError } = await supabase
+      .from("shared_games")
+      .insert({
+        content_id: content.id,
+        added_by: activeUserId,
+        status: "planned",
+      })
+
+    if (sharedError) {
+      console.error("Shared game save error:", sharedError)
+      throw sharedError
+    }
+
+    return content
+  }
+
+  const handleSubmit = async () => {
     if (!formData.title.trim()) return
 
-    addSharedGameItem({
-      title: formData.title,
-      cover: formData.cover || defaultCovers[Math.floor(Math.random() * defaultCovers.length)],
-      description: formData.description || undefined,
-      platforms: formData.platforms.length > 0 ? formData.platforms : ["pc"],
-      genres: formData.genres ? formData.genres.split(",").map(g => g.trim()) : undefined,
-      status: "planning",
-      addedByUserId: activeUserId,
-    })
+    try {
+      await saveToSupabase()
+      
+      addSharedGameItem({
+        title: formData.title,
+        cover: formData.cover || defaultCovers[Math.floor(Math.random() * defaultCovers.length)],
+        description: formData.description || undefined,
+        platforms: formData.platforms.length > 0 ? formData.platforms : ["pc"],
+        genres: formData.genres ? formData.genres.split(",").map(g => g.trim()) : undefined,
+        status: "planning",
+        addedByUserId: activeUserId,
+      })
 
-    setFormData({
-      title: "",
-      cover: "",
-      description: "",
-      platforms: [],
-      genres: "",
-    })
-    setOpen(false)
+      // Сброс формы
+      setFormData({
+        title: "",
+        cover: "",
+        description: "",
+        platforms: [],
+        genres: "",
+        externalId: "",
+      })
+      setSearchQuery("")
+      setOpen(false)
+    } catch (error) {
+      console.error("Submit error:", error)
+      alert("Ошибка при сохранении. Попробуй ещё раз.")
+    }
   }
 
   const togglePlatform = (platform: GamePlatform) => {
@@ -130,76 +263,158 @@ function AddGameDialog() {
     }))
   }
 
+  // Сброс при закрытии
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setSearchQuery("")
+      setSearchResults([])
+      setShowResults(false)
+      setFormData({
+        title: "",
+        cover: "",
+        description: "",
+        platforms: [],
+        genres: "",
+        externalId: "",
+      })
+    }
+    setOpen(newOpen)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button className="rounded-full gap-2">
           <Plus className="w-4 h-4" />
           Добавить игру
         </Button>
       </DialogTrigger>
-      <DialogContent className="rounded-2xl">
+      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Добавить игру</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Название *</Label>
-            <Input
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Название игры"
-              className="rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Описание</Label>
-            <Textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Краткое описание..."
-              className="rounded-xl resize-none"
-              rows={3}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Обложка (URL)</Label>
-            <Input
-              value={formData.cover}
-              onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
-              placeholder="https://example.com/cover.jpg"
-              className="rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Платформы</Label>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(platformLabels) as GamePlatform[]).map((platform) => (
-                <button
-                  key={platform}
-                  type="button"
-                  onClick={() => togglePlatform(platform)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-full text-sm transition-all",
-                    formData.platforms.includes(platform)
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                >
-                  {platformLabels[platform]}
-                </button>
-              ))}
+          {/* Поле поиска */}
+          <div className="space-y-2 relative">
+            <Label>Поиск игры *</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                onFocus={() => searchResults.length > 0 && setShowResults(true)}
+                placeholder="Введите название игры..."
+                className="rounded-xl pl-10"
+              />
             </div>
+            
+            {/* Выпадающий список результатов */}
+            {showResults && (
+              <div className="absolute z-10 w-full mt-1 bg-background border rounded-xl shadow-lg max-h-60 overflow-auto">
+                {isSearching ? (
+                  <div className="p-4 text-center">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((game) => (
+                    <div
+                      key={game.id}
+                      className="p-3 hover:bg-muted cursor-pointer flex items-center gap-3 border-b last:border-0"
+                      onClick={() => handleSelectGame(game)}
+                    >
+                      {game.background_image && (
+                        <img 
+                          src={game.background_image} 
+                          alt={game.name} 
+                          className="w-12 h-12 object-cover rounded flex-shrink-0"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{game.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {game.released ? new Date(game.released).getFullYear() : "Год не указан"}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : searchQuery.length >= 2 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Ничего не найдено
+                  </div>
+                ) : null}
+              </div>
+            )}
+            
+            {!showResults && searchQuery && formData.title && (
+              <p className="text-xs text-muted-foreground">
+                ✅ Выбрано: {formData.title}
+              </p>
+            )}
           </div>
-          <div className="space-y-2">
-            <Label>Жанры (через запятую)</Label>
-            <Input
-              value={formData.genres}
-              onChange={(e) => setFormData({ ...formData, genres: e.target.value })}
-              placeholder="Приключение, Кооператив"
-              className="rounded-xl"
-            />
-          </div>
+
+          {/* Форма редактирования (показывается после выбора) */}
+          {formData.title && (
+            <>
+              <div className="space-y-2">
+                <Label>Описание</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Краткое описание..."
+                  className="rounded-xl resize-none"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Обложка (URL)</Label>
+                <Input
+                  value={formData.cover}
+                  onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
+                  placeholder="https://example.com/cover.jpg"
+                  className="rounded-xl"
+                />
+                {formData.cover && (
+                  <img 
+                    src={formData.cover} 
+                    alt="Preview" 
+                    className="w-20 h-20 object-cover rounded-lg mt-2"
+                  />
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Платформы</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(platformLabels) as GamePlatform[]).map((platform) => (
+                    <button
+                      key={platform}
+                      type="button"
+                      onClick={() => togglePlatform(platform)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-sm transition-all",
+                        formData.platforms.includes(platform)
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      {platformLabels[platform]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Жанры (через запятую)</Label>
+                <Input
+                  value={formData.genres}
+                  onChange={(e) => setFormData({ ...formData, genres: e.target.value })}
+                  placeholder="Приключение, Кооператив"
+                  className="rounded-xl"
+                />
+              </div>
+            </>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} className="rounded-full">
@@ -265,7 +480,6 @@ function GameCard({ item, index }: { item: SharedGameItem; index: number }) {
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             
-            {/* Overlay on hover */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 {item.description && (
@@ -295,7 +509,6 @@ function GameCard({ item, index }: { item: SharedGameItem; index: number }) {
               </div>
             </div>
 
-            {/* Status badge */}
             <div className="absolute top-2 left-2">
               <span className={cn(
                 "px-2 py-1 text-xs font-medium rounded-full",
@@ -305,7 +518,6 @@ function GameCard({ item, index }: { item: SharedGameItem; index: number }) {
               </span>
             </div>
 
-            {/* Platform badges */}
             <div className="absolute bottom-2 left-2 right-2 flex gap-1 flex-wrap opacity-100 group-hover:opacity-0 transition-opacity">
               {item.platforms.slice(0, 2).map((platform) => (
                 <span key={platform} className="px-2 py-0.5 text-xs bg-black/60 text-white rounded-full">
@@ -324,7 +536,7 @@ function GameCard({ item, index }: { item: SharedGameItem; index: number }) {
             <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span>{addedByUser?.avatar}</span>
+                <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
                 <span className="truncate">{addedByUser?.name}</span>
               </div>
               {item.rating ? (
@@ -347,7 +559,6 @@ function GameCard({ item, index }: { item: SharedGameItem; index: number }) {
         </Card>
       </motion.div>
 
-      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -509,7 +720,6 @@ export default function GamesPage() {
       animate={{ opacity: 1 }}
       className="space-y-6 pb-8"
     >
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -521,15 +731,14 @@ export default function GamesPage() {
           transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
           className="inline-flex items-center justify-center gap-2 mb-4"
         >
-          <span className="text-4xl">{users[0].avatar}</span>
+          <UserAvatar avatar={users[0]?.avatar || ''} name={users[0]?.name || ''} size="xl" />
           <Gamepad2 className="w-8 h-8 text-primary" />
-          <span className="text-4xl">{users[1].avatar}</span>
+          <UserAvatar avatar={users[1]?.avatar || ''} name={users[1]?.name || ''} size="xl" />
         </motion.div>
         <h1 className="text-3xl font-bold mb-1">Во что поиграем?</h1>
         <p className="text-muted-foreground">Наш общий список игр</p>
       </motion.div>
 
-      {/* Stats */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -554,7 +763,6 @@ export default function GamesPage() {
         </Card>
       </motion.div>
 
-      {/* Tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -574,21 +782,17 @@ export default function GamesPage() {
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
-            <span className="ml-1 text-xs opacity-70">
-              ({stats[tab.value]})
-            </span>
+            <span className="ml-1 text-xs opacity-70">({stats[tab.value]})</span>
           </button>
         ))}
       </motion.div>
 
-      {/* Filters & Add Button */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="flex flex-wrap items-center gap-3"
       >
-        {/* Platform Chips */}
         <div className="flex gap-2 overflow-x-auto flex-1 pb-2">
           {platformOptions.map((option) => (
             <button
@@ -606,7 +810,6 @@ export default function GamesPage() {
           ))}
         </div>
 
-        {/* Sort */}
         <Select value={sortBy} onValueChange={(v: typeof sortBy) => setSortBy(v)}>
           <SelectTrigger className="w-40 rounded-full">
             <ArrowUpDown className="w-4 h-4 mr-2" />
@@ -622,7 +825,6 @@ export default function GamesPage() {
         <AddGameDialog />
       </motion.div>
 
-      {/* Games Grid */}
       <AnimatePresence mode="wait">
         <motion.div
           key={`${activeTab}-${filterPlatform}-${sortBy}`}

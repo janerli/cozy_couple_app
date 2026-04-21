@@ -1,13 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { UserAvatar } from "@/components/user-avatar"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { User, Palette, Bell, Link2, Save, X, Plus } from "lucide-react"
+import { User, Palette, Bell, Link2, Save, X, Plus, Image, Link } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useApp } from "@/lib/app-context"
 import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
@@ -15,18 +17,8 @@ import { cn } from "@/lib/utils"
 const avatarOptions = ["🦊", "🐻", "🐰", "🐱", "🐶", "🦁", "🐼", "🦄", "🐨", "🦋", "🌸", "✨"]
 
 const genreOptions = [
-  "Романтика",
-  "Комедия",
-  "Драма",
-  "Sci-Fi",
-  "Триллер",
-  "Хоррор",
-  "Аниме",
-  "Документальное",
-  "Фэнтези",
-  "Боевик",
-  "Мюзикл",
-  "Детектив",
+  "Романтика", "Комедия", "Драма", "Sci-Fi", "Триллер", "Хоррор",
+  "Аниме", "Документальное", "Фэнтези", "Боевик", "Мюзикл", "Детектив",
 ]
 
 export default function SettingsPage() {
@@ -38,8 +30,21 @@ export default function SettingsPage() {
   const [selectedAvatar, setSelectedAvatar] = useState(activeUser.avatar)
   const [selectedGenres, setSelectedGenres] = useState<string[]>(activeUser.favoriteGenres)
   const [hasChanges, setHasChanges] = useState(false)
-
   const [animationsEnabled, setAnimationsEnabled] = useState(true)
+  
+  // Для загрузки по URL
+  const [avatarUrlInput, setAvatarUrlInput] = useState("")
+  const [avatarTab, setAvatarTab] = useState<"emoji" | "url">("emoji")
+
+  // Сбрасываем форму при смене пользователя
+  useEffect(() => {
+    setName(activeUser.name)
+    setBio(activeUser.bio)
+    setSelectedAvatar(activeUser.avatar)
+    setSelectedGenres(activeUser.favoriteGenres)
+    setAvatarUrlInput("")
+    setHasChanges(false)
+  }, [activeUser.id])
 
   const handleChange = () => {
     setHasChanges(true)
@@ -60,6 +65,7 @@ export default function SettingsPage() {
     setBio(activeUser.bio)
     setSelectedAvatar(activeUser.avatar)
     setSelectedGenres(activeUser.favoriteGenres)
+    setAvatarUrlInput("")
     setHasChanges(false)
   }
 
@@ -72,6 +78,13 @@ export default function SettingsPage() {
     handleChange()
   }
 
+  const handleUrlSubmit = () => {
+    if (avatarUrlInput.trim()) {
+      setSelectedAvatar(avatarUrlInput.trim())
+      handleChange()
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -79,10 +92,7 @@ export default function SettingsPage() {
       className="max-w-2xl mx-auto space-y-6 pb-8"
     >
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-3xl font-bold mb-1">Настройки</h1>
         <p className="text-muted-foreground">Настройте свой профиль и приложение</p>
       </motion.div>
@@ -101,28 +111,70 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
-            {/* Avatar */}
+            {/* Avatar Preview */}
+            <div className="flex items-center gap-4">
+              <UserAvatar avatar={selectedAvatar} name={name} size="xl" />
+              <div>
+                <p className="font-medium">{name || "Ваше имя"}</p>
+                <p className="text-sm text-muted-foreground">Предпросмотр аватара</p>
+              </div>
+            </div>
+
+            {/* Avatar Selection */}
             <div className="space-y-3">
               <Label>Аватар</Label>
-              <div className="flex flex-wrap gap-2">
-                {avatarOptions.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => {
-                      setSelectedAvatar(emoji)
-                      handleChange()
-                    }}
-                    className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-all",
-                      selectedAvatar === emoji
-                        ? "bg-primary/20 ring-2 ring-primary scale-110"
-                        : "bg-muted hover:bg-muted/80"
-                    )}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+              
+              <Tabs value={avatarTab} onValueChange={(v) => setAvatarTab(v as "emoji" | "url")}>
+                <TabsList className="grid w-full grid-cols-2 rounded-full">
+                  <TabsTrigger value="emoji" className="rounded-full">
+                    <Image className="w-4 h-4 mr-2" />
+                    Эмодзи
+                  </TabsTrigger>
+                  <TabsTrigger value="url" className="rounded-full">
+                    <Link className="w-4 h-4 mr-2" />
+                    Ссылка
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="emoji" className="mt-4">
+                  <div className="flex flex-wrap gap-2">
+                    {avatarOptions.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => {
+                          setSelectedAvatar(emoji)
+                          handleChange()
+                        }}
+                        className={cn(
+                          "w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-all",
+                          selectedAvatar === emoji
+                            ? "bg-primary/20 ring-2 ring-primary scale-110"
+                            : "bg-muted hover:bg-muted/80"
+                        )}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="url" className="mt-4 space-y-3">
+                  <div className="flex gap-2">
+                    <Input
+                      value={avatarUrlInput}
+                      onChange={(e) => setAvatarUrlInput(e.target.value)}
+                      placeholder="https://example.com/avatar.jpg"
+                      className="rounded-xl"
+                    />
+                    <Button onClick={handleUrlSubmit} className="rounded-full">
+                      Применить
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Вставьте ссылку на изображение (поддерживаются JPG, PNG, GIF)
+                  </p>
+                </TabsContent>
+              </Tabs>
             </div>
 
             {/* Name */}
@@ -212,7 +264,6 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
-            {/* Theme */}
             <div className="space-y-3">
               <Label>Тема</Label>
               <div className="grid grid-cols-2 gap-3">
@@ -267,10 +318,7 @@ export default function SettingsPage() {
                 <p className="font-medium">Анимации</p>
                 <p className="text-sm text-muted-foreground">Включить плавные переходы</p>
               </div>
-              <Switch
-                checked={animationsEnabled}
-                onCheckedChange={setAnimationsEnabled}
-              />
+              <Switch checked={animationsEnabled} onCheckedChange={setAnimationsEnabled} />
             </div>
           </CardContent>
         </Card>
@@ -291,18 +339,13 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-3xl">
-                {partnerUser.avatar}
-              </div>
+              <UserAvatar avatar={partnerUser.avatar} name={partnerUser.name} size="xl" />
               <div className="flex-1">
                 <p className="font-medium text-lg">{partnerUser.name}</p>
                 <p className="text-sm text-muted-foreground">{partnerUser.bio}</p>
                 <div className="flex gap-1 mt-2">
                   {partnerUser.favoriteGenres.slice(0, 3).map((genre) => (
-                    <span
-                      key={genre}
-                      className="px-2 py-0.5 bg-muted rounded-full text-xs"
-                    >
+                    <span key={genre} className="px-2 py-0.5 bg-muted rounded-full text-xs">
                       {genre}
                     </span>
                   ))}

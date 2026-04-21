@@ -1,5 +1,6 @@
 "use client"
 
+import { UserAvatar } from "@/components/user-avatar"
 import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Film, Clock, Play, ArrowUpDown, Ban } from "lucide-react"
@@ -106,9 +107,8 @@ export default function LibraryPage() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", bounce: 0.5 }}
-                className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center text-5xl"
               >
-                {activeUser.avatar}
+                <UserAvatar avatar={activeUser.avatar} name={activeUser.name} size="xl" />
               </motion.div>
               <div className="flex-1 text-center sm:text-left">
                 <h1 className="text-2xl font-bold mb-1">{activeUser.name}</h1>

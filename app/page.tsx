@@ -1,5 +1,6 @@
 "use client"
 
+import { UserAvatar } from "@/components/user-avatar"
 import { useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Sparkles, Play, Heart, Clock, Film, Plus, Star, ListVideo, Gamepad2, Trophy } from "lucide-react"
@@ -135,7 +136,15 @@ export default function HomePage() {
           transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
           className="inline-block mb-4"
         >
-          <span className="text-6xl">{activeUser.avatar}</span>
+          {activeUser.avatar?.startsWith('http') ? (
+  <img 
+    src={activeUser.avatar} 
+    alt={activeUser.name}
+    className="w-16 h-16 rounded-full object-cover"
+  />
+) : (
+  <span className="text-6xl">{activeUser.avatar || '🦊'}</span>
+)}
         </motion.div>
         <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
           {getGreeting()}, {activeUser.name}!
@@ -490,10 +499,20 @@ export default function HomePage() {
 
       {/* Partner Activity */}
       <motion.section variants={itemVariants}>
-        <div className="flex items-center gap-3 mb-4">
-          <span className="text-2xl">{partnerUser.avatar}</span>
-          <h2 className="text-xl font-bold">Личная активность {partnerUser.name}</h2>
-        </div>
+  <div className="flex items-center gap-3 mb-4">
+    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
+      {partnerUser.avatar?.startsWith('http') ? (
+        <img 
+          src={partnerUser.avatar} 
+          alt={partnerUser.name}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span className="text-xl">{partnerUser.avatar || partnerUser.name?.charAt(0) || '👤'}</span>
+      )}
+    </div>
+    <h2 className="text-xl font-bold">Личная активность {partnerUser.name}</h2>
+  </div>
         <Card className="soft-shadow">
           <CardContent className="p-4">
             {partnerActivity.length > 0 ? (

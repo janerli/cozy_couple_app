@@ -7,6 +7,7 @@ import { Moon, Sparkles, Home, Library, Gift, Settings, ListVideo, Gamepad2 } fr
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { useApp } from "@/lib/app-context"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 const navItems = [
   { href: "/", label: "Главная", icon: Home },
@@ -86,13 +87,16 @@ export function Header() {
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setActiveUserId(user.id)}
                 className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all",
+                  "relative rounded-full transition-all",
                   activeUserId === user.id
-                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/20"
-                    : "bg-muted hover:bg-muted/80"
+                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    : ""
                 )}
               >
-                {user.avatar}
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                </Avatar>
               </motion.button>
             ))}
           </div>
