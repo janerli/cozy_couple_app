@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Наш Уют - Уютный трекер для двоих",
+  title: "Бувик и котенок",
   description: "Отслеживайте фильмы, сериалы и желания вместе с любимым человеком",
   generator: "v0.app",
   icons: {

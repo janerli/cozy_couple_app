@@ -39,7 +39,7 @@ export function Header() {
             className="text-xl font-bold text-primary flex items-center gap-1"
           >
             <span className="text-2xl">✨</span>
-            <span className="hidden sm:inline">Наш Уют</span>
+            <span className="hidden sm:inline">Любимость</span>
           </motion.div>
         </Link>
 
