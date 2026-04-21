@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(
-      `https://shikimori.one/api/animes?search=${encodeURIComponent(query)}&limit=10`,
+      `https://shikimori.io/api/animes?search=${encodeURIComponent(query)}&limit=10`,
       {
         headers: {
           'User-Agent': 'OurCozyTracker/1.0',

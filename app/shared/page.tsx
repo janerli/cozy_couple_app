@@ -207,7 +207,7 @@ const anime = item as ShikimoriAnime
     
     if (!description) {
       try {
-        const res = await fetch(`https://shikimori.one/api/animes/${anime.id}`, {
+        const res = await fetch(`https://shikimori.io/api/animes/${anime.id}`, {
           headers: { 'User-Agent': 'OurCozyTracker/1.0' }
         })
         const detail = await res.json()
@@ -217,7 +217,7 @@ const anime = item as ShikimoriAnime
       }
     }
     const imgPath = anime.image?.original || anime.image?.preview || ""
-    const poster = imgPath.startsWith('/') ? `https://shikimori.one${imgPath}` : imgPath
+    const poster = imgPath.startsWith('/') ? `https://shikimori.io${imgPath}` : imgPath
 setFormData({
   ...formData,
   title: anime.russian || anime.name,
@@ -351,7 +351,7 @@ setFormData({
         const img = (item as ShikimoriAnime).image
         const path = img?.preview || img?.original || ""
         // Если путь начинается с "/", добавляем домен Shikimori
-        return path.startsWith('/') ? `https://shikimori.one${path}` : path
+        return path.startsWith('/') ? `https://shikimori.io${path}` : path
       })()
   
   const title = searchSource === "kinopoisk"

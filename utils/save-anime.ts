@@ -35,7 +35,7 @@ export async function saveAnimeToDatabase(animeData: ShikimoriAnime, userId: str
       content_type: contentType,
       title_ru: animeData.russian || animeData.name,
       title_en: animeData.name,
-      poster_url: animeData.poster?.originalUrl || `https://shikimori.one${animeData.url}`,
+      poster_url: animeData.poster?.originalUrl || `https://shikimori.io${animeData.url}`,
       description: animeData.description || null,
       year: animeData.aired_on ? new Date(animeData.aired_on).getFullYear() : null,
       genres: animeData.genres?.map(g => g.russian || g.name) || [],
