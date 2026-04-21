@@ -101,17 +101,17 @@ type AppContextType = {
 const defaultUsers: User[] = [
   {
     id: "user1",
-    name: "Аня",
+    name: "Женечка",
     avatar: "🦊",
-    bio: "Люблю уютные вечера с горячим какао",
+    bio: "мяу",
     favoriteGenres: ["Романтика", "Аниме", "Комедия"],
   },
   {
     id: "user2",
-    name: "Миша",
+    name: "Димочка",
     avatar: "🐻",
-    bio: "Фанат научной фантастики и хороших историй",
-    favoriteGenres: ["Sci-Fi", "Триллер", "Документальное"],
+    bio: "просто був",
+    favoriteGenres: ["Триллер", "Документальное"],
   },
 ]
 
