@@ -1,7 +1,7 @@
 "use client"
 
 import { UserAvatar } from "@/components/user-avatar"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
   Heart, 
