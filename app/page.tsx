@@ -186,28 +186,29 @@ export default function HomePage() {
   </motion.div>
   
   {isPartner ? (
-    // 🔥 Приветствие для партнёра
-    <>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-        Привет, котя! 
-      </h1>
-      <p className="text-muted-foreground text-lg">
-        <span className="text-primary font-medium">{compliment}</span>
-        {" "}❤️
-      </p>
-    </>
-  ) : (
-    // 🔥 Приветствие для тебя
-    <>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-        Привет, {activeUser.name}!
-      </h1>
-      <p className="text-muted-foreground text-lg">
-        Сегодня такой уютный день для...{" "}
-        <span className="text-primary font-medium">{activity}</span>
-      </p>
-    </>
-  )}
+  // 🔥 Приветствие для партнёра
+  <>
+    <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+      Привет, котёнок! 
+    </h1>
+    <p className="text-muted-foreground text-lg">
+      Интересный факт:{" "}
+      <span className="text-primary font-medium">{compliment}</span>
+      {" "}❤️
+    </p>
+  </>
+) : (
+  // 🔥 Приветствие для тебя
+  <>
+    <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+      Привет, {activeUser.name}!
+    </h1>
+    <p className="text-muted-foreground text-lg">
+      Сегодня такой уютный день для...{" "}
+      <span className="text-primary font-medium">{activity}</span>
+    </p>
+  </>
+)}
 </motion.section>
 
       {/* Random Pickers Row */}
