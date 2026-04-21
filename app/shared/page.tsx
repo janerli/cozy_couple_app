@@ -419,32 +419,54 @@ setFormData({
 }
 
 function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number }) {
-  const { users, updateSharedMediaItem, deleteSharedMediaItem } = useApp()
+  const { users, activeUserId, partnerUser, updateSharedMediaItem, deleteSharedMediaItem, updateSharedMediaUserRating } = useApp()
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({
     title: item.title,
     description: item.description || "",
     status: item.status,
-    rating: item.rating || 0,
     currentSeason: item.currentSeason || 1,
     currentEpisode: item.currentEpisode || 1,
     note: item.note || "",
-    reaction: item.reaction || "",
   })
+  
+  // 🔥 Индивидуальные оценки и реакции
+  const [userRating, setUserRating] = useState(0)
+  const [userReaction, setUserReaction] = useState("")
 
   const addedByUser = users.find((u) => u.id === item.addedByUserId)
+  
+  // 🔥 Получаем оценки обоих пользователей
+  const myRating = item.userRatings?.find(r => r.user_id === activeUserId)
+  const partnerRating = item.userRatings?.find(r => r.user_id === partnerUser?.id)
 
-  const handleSave = () => {
-    updateSharedMediaItem(item.id, {
+  // 🔥 Загружаем текущие оценки при открытии редактирования
+  useEffect(() => {
+    if (isEditing) {
+      setUserRating(myRating?.user_rating || 0)
+      setUserReaction(myRating?.reaction || "")
+    }
+  }, [isEditing, myRating])
+
+  const handleSave = async () => {
+    // Сохраняем основные данные карточки
+    await updateSharedMediaItem(item.id, {
       title: editData.title,
       description: editData.description || undefined,
       status: editData.status,
-      rating: editData.rating || undefined,
       currentSeason: hasEpisodes(item.type) ? editData.currentSeason : undefined,
       currentEpisode: hasEpisodes(item.type) ? editData.currentEpisode : undefined,
       note: editData.note || undefined,
-      reaction: editData.reaction || undefined,
     })
+    
+    // 🔥 Сохраняем индивидуальную оценку и реакцию
+    await updateSharedMediaUserRating(
+      item.id, 
+      activeUserId, 
+      userRating || null, 
+      userReaction || null
+    )
+    
     setIsEditing(false)
   }
 
@@ -463,6 +485,7 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
         <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
           <div className="relative aspect-[2/3]">
             <img src={item.poster} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+            
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 {item.description && <p className="text-white/80 text-xs mb-3 line-clamp-3">{item.description}</p>}
@@ -473,14 +496,25 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
                 </div>
               </div>
             </div>
+            
             <div className="absolute top-2 left-2">
               <span className={cn("px-2 py-1 text-xs font-medium rounded-full", mediaStatusColors[item.status])}>{mediaStatusLabels[item.status]}</span>
             </div>
-            {item.reaction && <div className="absolute top-2 right-2"><span className="w-8 h-8 bg-background/80 backdrop-blur rounded-full flex items-center justify-center text-lg">{item.reaction}</span></div>}
+            
+            {/* 🔥 Реакция текущего пользователя */}
+            {myRating?.reaction && (
+              <div className="absolute top-2 right-2">
+                <span className="w-8 h-8 bg-background/80 backdrop-blur rounded-full flex items-center justify-center text-lg">
+                  {myRating.reaction}
+                </span>
+              </div>
+            )}
+            
             <div className="absolute bottom-2 left-2 right-2 opacity-100 group-hover:opacity-0 transition-opacity">
               <span className="px-2 py-1 text-xs bg-black/60 text-white rounded-full">{typeLabels[item.type]}</span>
             </div>
           </div>
+          
           <div className="p-3">
             <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
             <div className="flex items-center justify-between gap-2">
@@ -488,17 +522,39 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
                 <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
                 <span className="truncate">{addedByUser?.name}</span>
               </div>
-              {item.rating ? (
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Star key={i} className={cn("w-2 h-2", i < item.rating! ? "text-amber-500 fill-amber-500" : "text-muted-foreground/30")} />
-                  ))}
-                </div>
-              ) : progressText ? <span className="text-xs text-muted-foreground truncate">{progressText}</span> : null}
+            </div>
+            
+            {/* 🔥 Оценки обоих пользователей */}
+            <div className="flex justify-between items-center mt-2 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Ты:</span>
+                {myRating?.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+                    <span className="font-medium">{myRating.user_rating}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">{partnerUser?.name}:</span>
+                {partnerRating?.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+                    <span className="font-medium">{partnerRating.user_rating}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )}
+              </div>
+              {progressText && <span className="text-muted-foreground truncate">{progressText}</span>}
             </div>
           </div>
         </Card>
       </motion.div>
+
+      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Редактировать</DialogTitle></DialogHeader>
@@ -523,11 +579,40 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
                 <div className={cn("space-y-2", item.type === "anime" && "col-span-2")}><Label>Серия</Label><Input type="number" min={1} value={editData.currentEpisode} onChange={(e) => setEditData({ ...editData, currentEpisode: parseInt(e.target.value) || 1 })} className="rounded-xl" /></div>
               </div>
             )}
-            <div className="space-y-2"><Label>Оценка (1-10)</Label><div className="flex gap-0.5 flex-wrap">{Array.from({ length: 10 }).map((_, i) => <button key={i} onClick={() => setEditData({ ...editData, rating: i + 1 })} className="p-0.5"><Star className={cn("w-5 h-5", i < editData.rating ? "text-amber-500 fill-amber-500" : "text-muted-foreground hover:text-amber-500")} /></button>)}{editData.rating > 0 && <button onClick={() => setEditData({ ...editData, rating: 0 })} className="ml-2 p-1"><X className="w-4 h-4" /></button>}</div></div>
+            
+            {/* 🔥 Индивидуальная оценка */}
+            <div className="space-y-2">
+              <Label>Твоя оценка (1-10)</Label>
+              <div className="flex gap-0.5 flex-wrap">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <button key={i} onClick={() => setUserRating(i + 1)} className="p-0.5">
+                    <Star className={cn("w-5 h-5 transition-colors", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground hover:text-amber-500")} />
+                  </button>
+                ))}
+                {userRating > 0 && (
+                  <button onClick={() => setUserRating(0)} className="ml-2 p-1">
+                    <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
             <div className="space-y-2"><Label>Заметка</Label><Textarea value={editData.note} onChange={(e) => setEditData({ ...editData, note: e.target.value })} className="rounded-xl resize-none" rows={2} /></div>
-            <div className="space-y-2"><Label>Реакция</Label><div className="flex gap-2 flex-wrap">{reactions.map((e) => <button key={e} onClick={() => setEditData({ ...editData, reaction: editData.reaction === e ? "" : e })} className={cn("w-10 h-10 rounded-xl text-xl", editData.reaction === e ? "bg-primary/20 ring-2 ring-primary" : "bg-muted")}>{e}</button>)}</div></div>
+            
+            {/* 🔥 Индивидуальная реакция */}
+            <div className="space-y-2">
+              <Label>Твоя реакция</Label>
+              <div className="flex gap-2 flex-wrap">
+                {["💕", "🔥", "😍", "👍", "😢", "😱", "🤯", "💤"].map((e) => (
+                  <button key={e} onClick={() => setUserReaction(userReaction === e ? "" : e)} className={cn("w-10 h-10 rounded-xl text-xl", userReaction === e ? "bg-primary/20 ring-2 ring-primary" : "bg-muted")}>{e}</button>
+                ))}
+              </div>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setIsEditing(false)} className="rounded-full">Отмена</Button><Button onClick={handleSave} className="rounded-full">Сохранить</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditing(false)} className="rounded-full">Отмена</Button>
+            <Button onClick={handleSave} className="rounded-full">Сохранить</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
@@ -692,20 +777,50 @@ function AddGameDialog() {
 // ... предыдущий код ...
 
 function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }) {
-  const { users, updateSharedGameItem, deleteSharedGameItem } = useApp()
+  const { users, activeUserId, partnerUser, updateSharedGameItem, deleteSharedGameItem, updateSharedGameUserRating } = useApp()
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({
-    title: item.title, description: item.description || "", status: item.status,
-    rating: item.rating || 0, platforms: item.platforms, note: item.note || "",
+    title: item.title,
+    description: item.description || "",
+    status: item.status,
+    platforms: item.platforms,
+    note: item.note || "",
   })
-  const addedByUser = users.find((u) => u.id === item.addedByUserId)
+  
+  // 🔥 Индивидуальная оценка
+  const [userRating, setUserRating] = useState(0)
 
-  const handleSave = () => {
-    updateSharedGameItem(item.id, {
-      title: editData.title, description: editData.description || undefined,
-      status: editData.status, rating: editData.rating || undefined,
-      platforms: editData.platforms, note: editData.note || undefined,
+  const addedByUser = users.find((u) => u.id === item.addedByUserId)
+  
+  // 🔥 Получаем оценки обоих пользователей
+  const myRating = item.userRatings?.find(r => r.user_id === activeUserId)
+  const partnerRating = item.userRatings?.find(r => r.user_id === partnerUser?.id)
+
+  // 🔥 Загружаем текущую оценку при открытии редактирования
+  useEffect(() => {
+    if (isEditing) {
+      setUserRating(myRating?.user_rating || 0)
+    }
+  }, [isEditing, myRating])
+
+  const handleSave = async () => {
+    // Сохраняем основные данные карточки
+    await updateSharedGameItem(item.id, {
+      title: editData.title,
+      description: editData.description || undefined,
+      status: editData.status,
+      platforms: editData.platforms,
+      note: editData.note || undefined,
     })
+    
+    // 🔥 Сохраняем индивидуальную оценку
+    await updateSharedGameUserRating(
+      item.id,
+      activeUserId,
+      userRating || null,
+      null  // для игр пока без реакций
+    )
+    
     setIsEditing(false)
   }
 
@@ -744,17 +859,38 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
                 <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
                 <span className="truncate">{addedByUser?.name}</span>
               </div>
-              {item.rating ? (
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Star key={i} className={cn("w-2 h-2", i < item.rating! ? "text-amber-500 fill-amber-500" : "text-muted-foreground/30")} />
-                  ))}
-                </div>
-              ) : null}
+            </div>
+            
+            {/* 🔥 Оценки обоих пользователей */}
+            <div className="flex justify-between items-center mt-2 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Ты:</span>
+                {myRating?.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+                    <span className="font-medium">{myRating.user_rating}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">{partnerUser?.name}:</span>
+                {partnerRating?.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+                    <span className="font-medium">{partnerRating.user_rating}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )}
+              </div>
             </div>
           </div>
         </Card>
       </motion.div>
+
+      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Редактировать игру</DialogTitle></DialogHeader>
@@ -766,22 +902,41 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
               <Select value={editData.status} onValueChange={(v: SharedGameItem["status"]) => setEditData({ ...editData, status: v })}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="planning">Планируем</SelectItem><SelectItem value="playing">Играем</SelectItem>
-                  <SelectItem value="completed">Прошли</SelectItem><SelectItem value="dropped">Бросили</SelectItem>
+                  <SelectItem value="planning">Планируем</SelectItem>
+                  <SelectItem value="playing">Играем</SelectItem>
+                  <SelectItem value="completed">Прошли</SelectItem>
+                  <SelectItem value="dropped">Бросили</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2"><Label>Платформы</Label><div className="flex flex-wrap gap-2">{Object.keys(platformLabels).map((p) => <button key={p} onClick={() => togglePlatform(p as GamePlatform)} className={cn("px-3 py-1.5 rounded-full text-sm", editData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted")}>{platformLabels[p as GamePlatform]}</button>)}</div></div>
-            <div className="space-y-2"><Label>Оценка</Label><div className="flex gap-0.5">{Array.from({ length: 10 }).map((_, i) => <button key={i} onClick={() => setEditData({ ...editData, rating: i + 1 })}><Star className={cn("w-5 h-5", i < editData.rating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} /></button>)}{editData.rating > 0 && <button onClick={() => setEditData({ ...editData, rating: 0 })}><X className="w-4 h-4" /></button>}</div></div>
+            
+            {/* 🔥 Индивидуальная оценка */}
+            <div className="space-y-2">
+              <Label>Твоя оценка (1-10)</Label>
+              <div className="flex gap-0.5">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <button key={i} onClick={() => setUserRating(i + 1)}>
+                    <Star className={cn("w-5 h-5", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
+                  </button>
+                ))}
+                {userRating > 0 && (
+                  <button onClick={() => setUserRating(0)}><X className="w-4 h-4" /></button>
+                )}
+              </div>
+            </div>
+            
             <div className="space-y-2"><Label>Заметка</Label><Textarea value={editData.note} onChange={(e) => setEditData({ ...editData, note: e.target.value })} className="rounded-xl resize-none" rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setIsEditing(false)}>Отмена</Button><Button onClick={handleSave}>Сохранить</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditing(false)}>Отмена</Button>
+            <Button onClick={handleSave}>Сохранить</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   )
 }
-
 // ===================
 // MAIN PAGE
 // ===================

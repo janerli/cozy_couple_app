@@ -33,6 +33,7 @@ export type MediaItem = {
   userId: string
 }
 
+// Убираем rating и reaction из SharedMediaItem
 export type SharedMediaItem = {
   id: string
   title: string
@@ -40,15 +41,28 @@ export type SharedMediaItem = {
   description?: string
   type: MediaType
   status: "will-watch" | "watching" | "watched" | "dropped"
-  rating?: number
+  // rating?: number  ← УДАЛИТЬ
+  // reaction?: string ← УДАЛИТЬ
   currentSeason?: number
   currentEpisode?: number
   addedAt: Date
   addedByUserId: string
   note?: string
-  reaction?: string
+  // 🔥 Добавляем оценки пользователей
+  userRatings?: SharedMediaUserRating[]
 }
 
+// Новый тип для индивидуальных оценок
+export type SharedMediaUserRating = {
+  id: string
+  shared_media_id: string
+  user_id: string
+  user_rating: number | null
+  reaction: string | null
+  watched_at: string | null
+}
+
+// Аналогично для игр
 export type SharedGameItem = {
   id: string
   title: string
@@ -57,10 +71,20 @@ export type SharedGameItem = {
   platforms: GamePlatform[]
   genres?: string[]
   status: "planning" | "playing" | "completed" | "dropped"
-  rating?: number
+  // rating?: number  ← УДАЛИТЬ
   addedAt: Date
   addedByUserId: string
   note?: string
+  userRatings?: SharedGameUserRating[]
+}
+
+export type SharedGameUserRating = {
+  id: string
+  shared_game_id: string
+  user_id: string
+  user_rating: number | null
+  reaction: string | null
+  completed_at: string | null
 }
 
 export type WishlistItem = {
@@ -89,10 +113,12 @@ type AppContextType = {
   sharedMediaItems: SharedMediaItem[]
   addSharedMediaItem: (item: Omit<SharedMediaItem, "id" | "addedAt">) => Promise<void>
   updateSharedMediaItem: (id: string, updates: Partial<SharedMediaItem>) => Promise<void>
+  updateSharedMediaUserRating: (sharedMediaId: string, userId: string, rating: number | null, reaction: string | null) => Promise<void>
   deleteSharedMediaItem: (id: string) => Promise<void>
   sharedGameItems: SharedGameItem[]
   addSharedGameItem: (item: Omit<SharedGameItem, "id" | "addedAt">) => Promise<void>
   updateSharedGameItem: (id: string, updates: Partial<SharedGameItem>) => Promise<void>
+  updateSharedGameUserRating: (sharedGameId: string, userId: string, rating: number | null, reaction: string | null) => Promise<void>
   deleteSharedGameItem: (id: string) => Promise<void>
   wishlistItems: WishlistItem[]
   addWishlistItem: (item: Omit<WishlistItem, "id">) => Promise<void>
@@ -197,57 +223,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const loadSharedMediaItems = async () => {
-    const { data } = await supabase
-      .from("shared_media")
-      .select(`
-        id, status, user_rating, current_season, current_episode, added_at, added_by, notes, reaction,
-        content:content_id (title_ru, title_en, poster_url, description, content_type)
-      `)
-    
-    if (data) {
-      setSharedMediaItems(data.map((item: any) => ({
-        id: item.id,
-        title: item.content?.title_ru || item.content?.title_en || "Без названия",
-        poster: item.content?.poster_url || "",
-        description: item.content?.description,
-        type: mapContentType(item.content?.content_type),
-        status: mapSharedStatus(item.status),
-        rating: item.user_rating,
-        currentSeason: item.current_season,
-        currentEpisode: item.current_episode,
-        addedAt: new Date(item.added_at),
-        addedByUserId: item.added_by,
-        note: item.notes,
-        reaction: item.reaction,
-      })))
-    }
+const loadSharedMediaItems = async () => {
+  const { data } = await supabase
+    .from("shared_media")
+    .select(`
+      id, status, current_season, current_episode, added_at, added_by, notes,
+      content:content_id (title_ru, title_en, poster_url, description, content_type),
+      user_ratings:shared_media_user(*)
+    `)
+  
+  if (data) {
+    setSharedMediaItems(data.map((item: any) => ({
+      id: item.id,
+      title: item.content?.title_ru || item.content?.title_en || "Без названия",
+      poster: item.content?.poster_url || "",
+      description: item.content?.description,
+      type: mapContentType(item.content?.content_type),
+      status: mapSharedStatus(item.status),
+      currentSeason: item.current_season,
+      currentEpisode: item.current_episode,
+      addedAt: new Date(item.added_at),
+      addedByUserId: item.added_by,
+      note: item.notes,
+      userRatings: item.user_ratings || [],
+    })))
   }
+}
 
-  const loadSharedGameItems = async () => {
-    const { data } = await supabase
-      .from("shared_games")
-      .select(`
-        id, status, user_rating, added_at, added_by, notes,
-        content:content_id (title_ru, title_en, poster_url, description, platforms, genres)
-      `)
-    
-    if (data) {
-      setSharedGameItems(data.map((item: any) => ({
-        id: item.id,
-        title: item.content?.title_ru || item.content?.title_en || "Без названия",
-        cover: item.content?.poster_url || "",
-        description: item.content?.description,
-        platforms: item.content?.platforms || [],
-        genres: item.content?.genres || [],
-        status: mapGameStatus(item.status),
-        rating: item.user_rating,
-        addedAt: new Date(item.added_at),
-        addedByUserId: item.added_by,
-        note: item.notes,
-      })))
-    }
+const loadSharedGameItems = async () => {
+  const { data } = await supabase
+    .from("shared_games")
+    .select(`
+      id, status, added_at, added_by, notes, platforms,
+      content:content_id (title_ru, title_en, poster_url, description, genres),
+      user_ratings:shared_games_user(*)
+    `)
+  
+  if (data) {
+    setSharedGameItems(data.map((item: any) => ({
+      id: item.id,
+      title: item.content?.title_ru || item.content?.title_en || "Без названия",
+      cover: item.content?.poster_url || "",
+      description: item.content?.description,
+      platforms: item.platforms || [],
+      genres: item.content?.genres || [],
+      status: mapGameStatus(item.status),
+      addedAt: new Date(item.added_at),
+      addedByUserId: item.added_by,
+      note: item.notes,
+      userRatings: item.user_ratings || [],
+    })))
   }
+}
 
   const loadWishlistItems = async () => {
     const { data } = await supabase.from("wishlist").select("*")
@@ -336,33 +363,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSharedMediaItems(prev => [newItem, ...prev])
   }
 
-  const updateSharedMediaItem = async (id: string, updates: Partial<SharedMediaItem>) => {
-    const supabase = createClient()
-
-    const mapStatusToDb = (status?: string) => {
+const updateSharedMediaItem = async (id: string, updates: Partial<SharedMediaItem>) => {
+  const supabase = createClient()
+  
+  const mapStatusToDb = (status?: string) => {
     if (status === "will-watch") return "planned"
     if (status === "watching") return "watching"
     if (status === "watched") return "watched"
     if (status === "dropped") return "dropped"
     return "planned"
   }
+  
+  const { error } = await supabase
+    .from("shared_media")
+    .update({
+      status: mapStatusToDb(updates.status),
+      current_season: updates.currentSeason || null,
+      current_episode: updates.currentEpisode || null,
+      notes: updates.note || null,
+      updated_at: new Date(),
+    })
+    .eq("id", id)
+  
+  if (error) throw error
+  
+  setSharedMediaItems(prev =>
+    prev.map(item => item.id === id ? { ...item, ...updates } : item)
+  )
+}
 
-    const { error } = await supabase
-      .from("shared_media")
-      .update({
-        status: mapStatusToDb(updates.status),
-        user_rating: updates.rating || null,
-        current_season: updates.currentSeason || null,
-        current_episode: updates.currentEpisode || null,
-        notes: updates.note || null,
-        reaction: updates.reaction || null,
-        updated_at: new Date(),
-      })
-      .eq("id", id)
-    if (!error) {
-      setSharedMediaItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
-    }
-  }
+const updateSharedMediaUserRating = async (
+  sharedMediaId: string, 
+  userId: string, 
+  rating: number | null, 
+  reaction: string | null
+) => {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from("shared_media_user")
+    .upsert({
+      shared_media_id: sharedMediaId,
+      user_id: userId,
+      user_rating: rating,
+      reaction: reaction,
+      updated_at: new Date(),
+    }, { onConflict: "shared_media_id, user_id" })
+  
+  if (error) throw error
+  
+  // Обновляем локальное состояние
+  setSharedMediaItems(prev =>
+    prev.map(item => {
+      if (item.id !== sharedMediaId) return item
+      
+      const existingRatings = item.userRatings || []
+      const otherRatings = existingRatings.filter(r => r.user_id !== userId)
+      
+      return {
+        ...item,
+        userRatings: [
+          ...otherRatings,
+          { shared_media_id: sharedMediaId, user_id: userId, user_rating: rating, reaction }
+        ]
+      }
+    })
+  )
+}
 
   const deleteSharedMediaItem = async (id: string) => {
     const supabase = createClient()
@@ -377,31 +444,78 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSharedGameItems(prev => [newItem, ...prev])
   }
 
-  const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
-    const supabase = createClient()
-
-    const mapGameStatusToDb = (status?: string) => {
+const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
+  const supabase = createClient()
+  
+  const mapGameStatusToDb = (status?: string) => {
     if (status === "planning") return "planned"
     if (status === "playing") return "playing"
     if (status === "completed") return "completed"
     if (status === "dropped") return "dropped"
     return "planned"
   }
-
-    const { error } = await supabase
-      .from("shared_games")
-      .update({
-        status: mapGameStatusToDb(updates.status),
-        user_rating: updates.rating || null,
-        platforms: updates.platforms || null,
-        notes: updates.note || null,
-        updated_at: new Date(),
-      })
-      .eq("id", id)
-    if (!error) {
-      setSharedGameItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
-    }
+  
+  const { error } = await supabase
+    .from("shared_games")
+    .update({
+      status: mapGameStatusToDb(updates.status),
+      platforms: updates.platforms || null,
+      notes: updates.note || null,
+      updated_at: new Date(),
+    })
+    .eq("id", id)
+  
+  if (error) {
+    console.error("Update shared game error:", error)
+    throw error
   }
+  
+  setSharedGameItems(prev =>
+    prev.map(item => item.id === id ? { ...item, ...updates } : item)
+  )
+}
+
+const updateSharedGameUserRating = async (
+  sharedGameId: string, 
+  userId: string, 
+  rating: number | null, 
+  reaction: string | null
+) => {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from("shared_games_user")
+    .upsert({
+      shared_game_id: sharedGameId,
+      user_id: userId,
+      user_rating: rating,
+      reaction: reaction,
+      updated_at: new Date(),
+    }, { onConflict: "shared_game_id, user_id" })
+  
+  if (error) {
+    console.error("Update game user rating error:", error)
+    throw error
+  }
+  
+  // Обновляем локальное состояние
+  setSharedGameItems(prev =>
+    prev.map(item => {
+      if (item.id !== sharedGameId) return item
+      
+      const existingRatings = item.userRatings || []
+      const otherRatings = existingRatings.filter(r => r.user_id !== userId)
+      
+      return {
+        ...item,
+        userRatings: [
+          ...otherRatings,
+          { shared_game_id: sharedGameId, user_id: userId, user_rating: rating, reaction }
+        ]
+      }
+    })
+  )
+}
 
   const deleteSharedGameItem = async (id: string) => {
     const supabase = createClient()
@@ -487,7 +601,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sharedMediaItems, addSharedMediaItem, updateSharedMediaItem, deleteSharedMediaItem,
         sharedGameItems, addSharedGameItem, updateSharedGameItem, deleteSharedGameItem,
         wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem,
-        updateUser,
+        updateUser,  updateSharedMediaUserRating,
+      updateSharedGameUserRating,
       }}
     >
       {children}
