@@ -299,7 +299,7 @@ const loadSharedGameItems = async () => {
   const mapContentType = (type: string): MediaType => {
     const map: Record<string, MediaType> = {
       "movie": "movie", "series": "series", "anime": "anime",
-      "anime_film": "anime-movie", "cartoon": "cartoon"
+      "anime-movie": "anime-movie", "cartoon": "cartoon"
     }
     return map[type] || "movie"
   }
