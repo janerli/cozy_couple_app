@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Star, Check, X, Search, Loader2 } from "lucide-react"
+import { Plus, Star, Check, X, Search, Loader2, Film } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -40,7 +40,6 @@ function hasEpisodes(type: MediaItem["type"]): boolean {
   return type === "series" || type === "anime" || type === "cartoon"
 }
 
-// Типы для результатов поиска
 interface KinopoiskMovie {
   id: number
   name: string
@@ -49,7 +48,6 @@ interface KinopoiskMovie {
   poster?: { url: string }
   year?: number
   type: "movie" | "tv-series" | "anime" | "cartoon"
-  genres?: { name: string }[]
 }
 
 interface ShikimoriAnime {
@@ -57,28 +55,29 @@ interface ShikimoriAnime {
   name: string
   russian: string
   kind: "tv" | "movie" | "ova" | "ona" | "special"
-  score: string
-  episodes: number
   aired_on: string
-  poster?: { originalUrl: string; mainUrl: string }
+  image?: { original: string; preview: string; x96: string; x48: string }
   description?: string
-  genres?: { name: string; russian: string }[]
 }
 
 type SearchResult = KinopoiskMovie | ShikimoriAnime
 
+const getShikimoriImage = (image: ShikimoriAnime['image']) => {
+  if (!image) return ""
+  const path = image.preview || image.original || ""
+  return path.startsWith('/') ? `https://shikimori.one${path}` : path
+}
+
 export function AddMediaDialog() {
   const { addMediaItem, activeUserId } = useApp()
   const [open, setOpen] = useState(false)
-  
-  // Поиск
+
   const [searchSource, setSearchSource] = useState<"kinopoisk" | "shikimori">("kinopoisk")
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchInput, setSearchInput] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
-  
-  // Форма
+
   const [formData, setFormData] = useState({
     title: "",
     poster: "",
@@ -92,11 +91,8 @@ export function AddMediaDialog() {
     externalId: "",
   })
 
-  // Функция поиска
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query)
-    
-    if (query.length < 2) {
+  const handleSearch = async () => {
+    if (searchInput.length < 2) {
       setSearchResults([])
       setShowResults(false)
       return
@@ -104,20 +100,12 @@ export function AddMediaDialog() {
 
     setIsSearching(true)
     setShowResults(true)
-    
+
     try {
-      const endpoint = searchSource === "kinopoisk" 
-        ? "/api/search-movie" 
-        : "/api/search-anime"
-      
-      const res = await fetch(`${endpoint}?query=${encodeURIComponent(query)}`)
+      const endpoint = searchSource === "kinopoisk" ? "/api/search-movie" : "/api/search-anime"
+      const res = await fetch(`${endpoint}?query=${encodeURIComponent(searchInput)}`)
       const data = await res.json()
-      
-      if (searchSource === "kinopoisk") {
-        setSearchResults(data.docs || [])
-      } else {
-        setSearchResults(data || [])
-      }
+      setSearchResults(searchSource === "kinopoisk" ? (data.docs || []) : (data || []))
     } catch (error) {
       console.error("Search failed:", error)
       setSearchResults([])
@@ -126,78 +114,56 @@ export function AddMediaDialog() {
     }
   }
 
-  // Обработка выбора элемента из поиска
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleSearch()
+    }
+  }
+
   const handleSelectItem = (item: SearchResult) => {
     if (searchSource === "kinopoisk") {
       const movie = item as KinopoiskMovie
-      const mappedType = mapApiTypeToMediaType(movie.type)
-      
       setFormData({
         ...formData,
         title: movie.name,
         poster: movie.poster?.url || "",
         description: movie.description || "",
-        type: mappedType,
+        type: movie.type === "movie" ? "movie" : movie.type === "tv-series" ? "series" : "movie",
         externalId: movie.id.toString(),
       })
-      setSearchQuery(movie.name)
     } else {
       const anime = item as ShikimoriAnime
-      const isMovie = anime.kind === "movie"
-      
+      const poster = getShikimoriImage(anime.image)
       setFormData({
         ...formData,
         title: anime.russian || anime.name,
-        poster: anime.poster?.originalUrl || "",
+        poster: poster,
         description: anime.description || "",
-        type: isMovie ? "anime-movie" : "anime",
+        type: anime.kind === "movie" ? "anime-movie" : "anime",
         externalId: anime.id.toString(),
       })
-      setSearchQuery(anime.russian || anime.name)
     }
-    
     setShowResults(false)
     setSearchResults([])
   }
 
-  // Преобразование типа из API Кинопоиска
-  const mapApiTypeToMediaType = (apiType: string): MediaItem["type"] => {
-    switch (apiType) {
-      case "movie": return "movie"
-      case "tv-series": return "series"
-      case "anime": return "anime"
-      case "cartoon": return "cartoon"
-      default: return "movie"
-    }
-  }
-
-  // Получение года из элемента
   const getYear = (item: SearchResult): string => {
-    if (searchSource === "kinopoisk") {
-      const movie = item as KinopoiskMovie
-      return movie.year?.toString() || ""
-    } else {
-      const anime = item as ShikimoriAnime
-      return anime.aired_on ? new Date(anime.aired_on).getFullYear().toString() : ""
-    }
+    if (searchSource === "kinopoisk") return (item as KinopoiskMovie).year?.toString() || ""
+    const aired = (item as ShikimoriAnime).aired_on
+    return aired ? new Date(aired).getFullYear().toString() : ""
   }
 
-  // Получение типа для отображения
   const getTypeLabel = (item: SearchResult): string => {
     if (searchSource === "kinopoisk") {
-      const movie = item as KinopoiskMovie
-      return movie.type === "movie" ? "Фильм" : "Сериал"
-    } else {
-      const anime = item as ShikimoriAnime
-      return anime.kind === "movie" ? "Аниме-фильм" : "Аниме"
+      return (item as KinopoiskMovie).type === "movie" ? "Фильм" : "Сериал"
     }
+    return (item as ShikimoriAnime).kind === "movie" ? "Аниме-фильм" : "Аниме"
   }
 
-  // Сохранение в Supabase
   const saveToSupabase = async () => {
     const supabase = createClient()
-    
-    // 1. Сохраняем контент
+
     const { data: content, error: contentError } = await supabase
       .from("content")
       .upsert({
@@ -205,7 +171,7 @@ export function AddMediaDialog() {
         content_type: formData.type,
         title_ru: formData.title,
         title_en: formData.title,
-        poster_url: formData.poster || defaultPosters[Math.floor(Math.random() * defaultPosters.length)],
+        poster_url: formData.poster || defaultPosters[0],
         description: formData.description || null,
         year: null,
         updated_at: new Date(),
@@ -213,12 +179,8 @@ export function AddMediaDialog() {
       .select()
       .single()
 
-    if (contentError) {
-      console.error("Content save error:", contentError)
-      throw contentError
-    }
+    if (contentError) throw contentError
 
-    // 2. Сохраняем в личный список
     const { error: personalError } = await supabase
       .from("personal_media")
       .insert({
@@ -231,11 +193,7 @@ export function AddMediaDialog() {
         notes: null,
       })
 
-    if (personalError) {
-      console.error("Personal media save error:", personalError)
-      throw personalError
-    }
-
+    if (personalError) throw personalError
     return content
   }
 
@@ -244,10 +202,9 @@ export function AddMediaDialog() {
 
     try {
       await saveToSupabase()
-      
       addMediaItem({
         title: formData.title,
-        poster: formData.poster || defaultPosters[Math.floor(Math.random() * defaultPosters.length)],
+        poster: formData.poster || defaultPosters[0],
         description: formData.description || undefined,
         type: formData.type,
         status: formData.status,
@@ -258,20 +215,11 @@ export function AddMediaDialog() {
         userId: activeUserId,
       })
 
-      // Сброс формы
       setFormData({
-        title: "",
-        poster: "",
-        description: "",
-        type: "movie",
-        status: "planned",
-        rating: 0,
-        currentSeason: 1,
-        currentEpisode: 1,
-        watchedTogether: false,
-        externalId: "",
+        title: "", poster: "", description: "", type: "movie", status: "planned",
+        rating: 0, currentSeason: 1, currentEpisode: 1, watchedTogether: false, externalId: "",
       })
-      setSearchQuery("")
+      setSearchInput("")
       setSearchSource("kinopoisk")
       setOpen(false)
     } catch (error) {
@@ -280,24 +228,15 @@ export function AddMediaDialog() {
     }
   }
 
-  // Сброс при закрытии
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      setSearchQuery("")
+      setSearchInput("")
       setSearchResults([])
       setShowResults(false)
       setSearchSource("kinopoisk")
       setFormData({
-        title: "",
-        poster: "",
-        description: "",
-        type: "movie",
-        status: "planned",
-        rating: 0,
-        currentSeason: 1,
-        currentEpisode: 1,
-        watchedTogether: false,
-        externalId: "",
+        title: "", poster: "", description: "", type: "movie", status: "planned",
+        rating: 0, currentSeason: 1, currentEpisode: 1, watchedTogether: false, externalId: "",
       })
     }
     setOpen(newOpen)
@@ -311,11 +250,12 @@ export function AddMediaDialog() {
           Добавить
         </Button>
       </DialogTrigger>
-      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto w-[95vw] max-w-2xl md:max-w-3xl lg:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Добавить в медиатеку</DialogTitle>
+          <DialogTitle className="text-xl">Добавить в медиатеку</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+
+        <div className="space-y-5 py-4">
           {/* Переключатель источника */}
           <div className="flex gap-2 p-1 bg-muted rounded-full">
             {searchSources.map((source) => (
@@ -324,12 +264,12 @@ export function AddMediaDialog() {
                 type="button"
                 onClick={() => {
                   setSearchSource(source.value as "kinopoisk" | "shikimori")
-                  setSearchQuery("")
+                  setSearchInput("")
                   setSearchResults([])
                   setShowResults(false)
                 }}
                 className={cn(
-                  "flex-1 px-3 py-2 rounded-full text-sm font-medium transition-all",
+                  "flex-1 px-4 py-2.5 rounded-full text-sm md:text-base font-medium transition-all",
                   searchSource === source.value
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -340,122 +280,111 @@ export function AddMediaDialog() {
             ))}
           </div>
 
-          {/* Поле поиска */}
-          <div className="space-y-2 relative">
-            <Label>Поиск *</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                onFocus={() => searchResults.length > 0 && setShowResults(true)}
-                placeholder={searchSource === "kinopoisk" 
-                  ? "Введите название фильма или сериала..." 
-                  : "Введите название аниме..."
-                }
-                className="rounded-xl pl-10"
-              />
+          {/* Поле поиска с кнопкой */}
+          <div className="space-y-2">
+            <Label className="text-base">Поиск *</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={searchSource === "kinopoisk"
+                    ? "Введите название фильма или сериала..."
+                    : "Введите название аниме..."}
+                  className="rounded-xl pl-10 pr-4 py-6 text-base"
+                />
+              </div>
+              <Button
+                onClick={handleSearch}
+                disabled={searchInput.length < 2 || isSearching}
+                className="rounded-xl px-6 py-6 text-base"
+              >
+                {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Найти"}
+              </Button>
             </div>
-            
-            {/* Выпадающий список результатов */}
+
+            {/* Выпадающий список */}
             {showResults && (
-              <div className="absolute z-10 w-full mt-1 bg-background border rounded-xl shadow-lg max-h-60 overflow-auto">
+              <div className="relative w-full mt-2 bg-background border rounded-xl shadow-lg max-h-80 md:max-h-96 overflow-auto z-10">
                 {isSearching ? (
-                  <div className="p-4 text-center">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
+                  <div className="p-6 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">Ищем...</p>
                   </div>
                 ) : searchResults.length > 0 ? (
-                  searchResults.map((item) => {
-                    const posterUrl = searchSource === "kinopoisk" 
-                      ? (item as KinopoiskMovie).poster?.url 
-                      : (item as ShikimoriAnime).poster?.originalUrl
-                    
-                    const title = searchSource === "kinopoisk"
-                      ? (item as KinopoiskMovie).name
-                      : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name
-                    
-                    return (
-                      <div
-                        key={item.id}
-                        className="p-3 hover:bg-muted cursor-pointer flex items-center gap-3 border-b last:border-0"
-                        onClick={() => handleSelectItem(item)}
-                      >
-                        {posterUrl && (
-                          <img 
-                            src={posterUrl} 
-                            alt={title} 
-                            className="w-10 h-14 object-cover rounded flex-shrink-0"
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {getYear(item)} • {getTypeLabel(item)}
-                          </p>
+                  <div className="py-1">
+                    {searchResults.map((item) => {
+                      const poster = searchSource === "kinopoisk"
+                        ? (item as KinopoiskMovie).poster?.url
+                        : getShikimoriImage((item as ShikimoriAnime).image)
+                      const title = searchSource === "kinopoisk"
+                        ? (item as KinopoiskMovie).name
+                        : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-4 hover:bg-muted cursor-pointer flex items-start gap-4 border-b last:border-0 transition-colors"
+                          onClick={() => handleSelectItem(item)}
+                        >
+                          {poster && !poster.includes('missing') ? (
+                            <img src={poster} alt={title} className="w-14 h-20 md:w-16 md:h-24 object-cover rounded-lg flex-shrink-0 shadow-sm" />
+                          ) : (
+                            <div className="w-14 h-20 md:w-16 md:h-24 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Film className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0 py-1">
+                            <p className="font-medium text-base md:text-lg truncate">{title}</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {getYear(item)} • {getTypeLabel(item)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })
-                ) : searchQuery.length >= 2 ? (
-                  <div className="p-4 text-center text-sm text-muted-foreground">
-                    Ничего не найдено
+                      )
+                    })}
                   </div>
-                ) : null}
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-base text-muted-foreground">Ничего не найдено</p>
+                    <p className="text-sm text-muted-foreground mt-1">Попробуйте изменить запрос</p>
+                  </div>
+                )}
               </div>
             )}
-            
-            {!showResults && searchQuery && formData.title && (
-              <p className="text-xs text-muted-foreground">
-                ✅ Выбрано: {formData.title}
-              </p>
+
+            {/* Выбранный элемент */}
+            {!showResults && formData.title && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-xl">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Check className="w-4 h-4 text-green-500" />
+                  Выбрано: <span className="font-medium text-foreground">{formData.title}</span>
+                </p>
+              </div>
             )}
           </div>
 
-          {/* Форма редактирования (показывается только после выбора) */}
+          {/* Форма редактирования */}
           {formData.title && (
             <>
               <div className="space-y-2">
-                <Label>Описание</Label>
+                <Label className="text-base">Описание</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Краткое описание..."
-                  className="rounded-xl resize-none"
-                  rows={3}
+                  className="rounded-xl resize-none text-base"
+                  rows={4}
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Постер (URL)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={formData.poster}
-                    onChange={(e) => setFormData({ ...formData, poster: e.target.value })}
-                    placeholder="https://example.com/poster.jpg"
-                    className="rounded-xl"
-                  />
-                </div>
-                {formData.poster && (
-                  <img 
-                    src={formData.poster} 
-                    alt="Preview" 
-                    className="w-20 h-28 object-cover rounded-lg mt-2"
-                  />
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Тип</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value: MediaItem["type"]) =>
-                      setFormData({ ...formData, type: value })
-                    }
-                  >
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Label className="text-base">Тип</Label>
+                  <Select value={formData.type} onValueChange={(v: MediaItem["type"]) => setFormData({ ...formData, type: v })}>
+                    <SelectTrigger className="rounded-xl py-6 text-base"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="movie">Фильм</SelectItem>
                       <SelectItem value="series">Сериал</SelectItem>
@@ -466,16 +395,9 @@ export function AddMediaDialog() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Статус</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value: MediaItem["status"]) =>
-                      setFormData({ ...formData, status: value })
-                    }
-                  >
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Label className="text-base">Статус</Label>
+                  <Select value={formData.status} onValueChange={(v: MediaItem["status"]) => setFormData({ ...formData, status: v })}>
+                    <SelectTrigger className="rounded-xl py-6 text-base"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="planned">Запланировано</SelectItem>
                       <SelectItem value="watching">Смотрю</SelectItem>
@@ -490,98 +412,53 @@ export function AddMediaDialog() {
                 <div className="grid grid-cols-2 gap-4">
                   {formData.type !== "anime" && (
                     <div className="space-y-2">
-                      <Label>Текущий сезон</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={formData.currentSeason}
+                      <Label className="text-base">Текущий сезон</Label>
+                      <Input type="number" min={1} value={formData.currentSeason}
                         onChange={(e) => setFormData({ ...formData, currentSeason: parseInt(e.target.value) || 1 })}
-                        className="rounded-xl"
-                      />
+                        className="rounded-xl py-6 text-base" />
                     </div>
                   )}
                   <div className={cn("space-y-2", formData.type === "anime" && "col-span-2")}>
-                    <Label>Текущая серия</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={formData.currentEpisode}
+                    <Label className="text-base">Текущая серия</Label>
+                    <Input type="number" min={1} value={formData.currentEpisode}
                       onChange={(e) => setFormData({ ...formData, currentEpisode: parseInt(e.target.value) || 1 })}
-                      className="rounded-xl"
-                    />
+                      className="rounded-xl py-6 text-base" />
                   </div>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label>Оценка (1-10)</Label>
-                <div className="flex gap-0.5 flex-wrap">
+                <Label className="text-base">Оценка (1-10)</Label>
+                <div className="flex gap-1 flex-wrap">
                   {Array.from({ length: 10 }).map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, rating: i + 1 })}
-                      className="p-0.5"
-                    >
-                      <Star
-                        className={cn(
-                          "w-5 h-5 transition-colors",
-                          i < formData.rating
-                            ? "text-amber-500 fill-amber-500"
-                            : "text-muted-foreground hover:text-amber-500"
-                        )}
-                      />
+                    <button key={i} type="button" onClick={() => setFormData({ ...formData, rating: i + 1 })} className="p-1">
+                      <Star className={cn("w-7 h-7 transition-colors", i < formData.rating ? "text-amber-500 fill-amber-500" : "text-muted-foreground hover:text-amber-500")} />
                     </button>
                   ))}
                   {formData.rating > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, rating: 0 })}
-                      className="ml-2 p-1"
-                    >
-                      <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                    <button type="button" onClick={() => setFormData({ ...formData, rating: 0 })} className="ml-2 p-1">
+                      <X className="w-6 h-6 text-muted-foreground hover:text-foreground" />
                     </button>
                   )}
                 </div>
-                {formData.rating > 0 && (
-                  <p className="text-sm text-muted-foreground">{formData.rating}/10</p>
-                )}
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData({ ...formData, watchedTogether: !formData.watchedTogether })
-                  }
-                  className={cn(
-                    "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors",
-                    formData.watchedTogether
-                      ? "bg-primary border-primary text-primary-foreground"
-                      : "border-muted-foreground"
-                  )}
-                >
-                  {formData.watchedTogether && <Check className="w-4 h-4" />}
+              <div className="flex items-center gap-3 py-2">
+                <button type="button" onClick={() => setFormData({ ...formData, watchedTogether: !formData.watchedTogether })}
+                  className={cn("w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-colors",
+                    formData.watchedTogether ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground")}>
+                  {formData.watchedTogether && <Check className="w-5 h-5" />}
                 </button>
-                <Label
-                  className="cursor-pointer"
-                  onClick={() =>
-                    setFormData({ ...formData, watchedTogether: !formData.watchedTogether })
-                  }
-                >
+                <Label className="cursor-pointer text-base" onClick={() => setFormData({ ...formData, watchedTogether: !formData.watchedTogether })}>
                   Смотрели вместе
                 </Label>
               </div>
             </>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} className="rounded-full">
-            Отмена
-          </Button>
-          <Button onClick={handleSubmit} disabled={!formData.title.trim()} className="rounded-full">
-            Добавить
-          </Button>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)} className="rounded-full px-6 py-5 text-base">Отмена</Button>
+          <Button onClick={handleSubmit} disabled={!formData.title.trim()} className="rounded-full px-6 py-5 text-base">Добавить</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

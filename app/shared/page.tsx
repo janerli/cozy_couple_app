@@ -979,6 +979,12 @@ export default function SharedPage() {
     return items
   }, [sharedGameItems, gameTab, filterPlatform, gameSortBy])
 
+  // Где-нибудь в SharedPage после загрузки данных
+useEffect(() => {
+  console.log('Все элементы:', sharedMediaItems.map(m => m.type))
+  console.log('Аниме-фильмы:', sharedMediaItems.filter(m => m.type === 'anime-movie'))
+}, [sharedMediaItems])
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-6">
