@@ -4,41 +4,15 @@ import { UserAvatar } from "@/components/user-avatar"
 import { useMemo, useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
-  Heart, 
-  Clock, 
-  Film, 
-  Play, 
-  Ban, 
-  Plus, 
-  Star, 
-  Trash2, 
-  Edit2, 
-  ArrowUpDown,
-  X,
-  MessageCircle,
-  Gamepad2,
-  Trophy,
-  Clapperboard,
-  Search,
-  Loader2
+  Heart, Clock, Film, Play, Ban, Plus, Star, Trash2, Edit2, ArrowUpDown,
+  X, MessageCircle, Gamepad2, Trophy, Clapperboard, Search, Loader2, Check
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -47,7 +21,7 @@ import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
 // ===================
-// MEDIA SECTION
+// TYPES & CONSTANTS
 // ===================
 
 type MediaTab = "will-watch" | "watching" | "watched" | "dropped"
@@ -71,34 +45,22 @@ const filterOptions: { value: FilterType; label: string }[] = [
 ]
 
 const typeLabels: Record<SharedMediaItem["type"], string> = {
-  movie: "Фильм",
-  series: "Сериал",
-  anime: "Аниме",
-  "anime-movie": "Аниме-фильм",
-  cartoon: "Мультсериал",
+  movie: "Фильм", series: "Сериал", anime: "Аниме", "anime-movie": "Аниме-фильм", cartoon: "Мультсериал",
 }
 
 const mediaStatusLabels: Record<SharedMediaItem["status"], string> = {
-  "will-watch": "Будем смотреть",
-  watching: "Смотрим",
-  watched: "Посмотрели",
-  dropped: "Бросили",
+  "will-watch": "Будем смотреть", watching: "Смотрим", watched: "Посмотрели", dropped: "Бросили",
 }
 
 const mediaStatusColors: Record<SharedMediaItem["status"], string> = {
-  "will-watch": "bg-blue-500/90 text-white",
-  watching: "bg-amber-500/90 text-white",
-  watched: "bg-green-500/90 text-white",
-  dropped: "bg-red-500/90 text-white",
+  "will-watch": "bg-blue-500/90 text-white", watching: "bg-amber-500/90 text-white",
+  watched: "bg-green-500/90 text-white", dropped: "bg-red-500/90 text-white",
 }
 
 const defaultPosters = [
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=300&h=450&fit=crop",
   "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=300&h=450&fit=crop",
-  "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=300&h=450&fit=crop",
 ]
-
-const reactions = ["💕", "🔥", "😍", "👍", "😢", "😱", "🤯", "💤"]
 
 const searchSources = [
   { value: "kinopoisk", label: "🎬 Фильмы/Сериалы" },
@@ -109,81 +71,62 @@ function hasEpisodes(type: SharedMediaItem["type"]): boolean {
   return type === "series" || type === "anime" || type === "cartoon"
 }
 
-// Функция очистки HTML и BB-кодов
 const cleanDescription = (text: string) => {
   if (!text) return ""
-  // Удаляем HTML-теги
-  const noHtml = text.replace(/<[^>]*>/g, '')
-  // Удаляем BB-коды [character=...] и [/character]
-  const noBbCode = noHtml.replace(/\[[^\]]*\]/g, '')
-  return noBbCode.trim()
+  return text.replace(/<[^>]*>/g, '').replace(/\[[^\]]*\]/g, '').trim()
 }
 
 interface KinopoiskMovie {
-  id: number
-  name: string
-  alternativeName?: string
-  description?: string
-  poster?: { url: string }
-  year?: number
-  type: "movie" | "tv-series" | "anime" | "cartoon"
+  id: number; name: string; description?: string; poster?: { url: string }
+  year?: number; type: "movie" | "tv-series"
 }
 
 interface ShikimoriAnime {
-  id: number
-  name: string
-  russian: string
-  kind: "tv" | "movie" | "ova" | "ona" | "special"
-  poster?: { originalUrl: string }
-  image?: {
-    original: string  // Оригинальное изображение
-    preview: string   // Превью (обычно x160)
-    x96: string       // Маленькое (x96)
-    x48: string       // Очень маленькое (x48)
-  }
-  description?: string
-  aired_on?: string
+  id: number; name: string; russian: string; kind: "tv" | "movie"
+  image?: { original: string; preview: string }
+  description?: string; aired_on?: string
 }
 
 type SearchResult = KinopoiskMovie | ShikimoriAnime
 
+const getShikimoriImage = (image: ShikimoriAnime['image']) => {
+  if (!image) return ""
+  const path = image.preview || image.original || ""
+  return path.startsWith('/') ? `https://shikimori.one${path}` : path
+}
+
+// ===================
+// ADD SHARED MEDIA DIALOG
+// ===================
+
 function AddSharedMediaDialog() {
   const { addSharedMediaItem, activeUserId } = useApp()
   const [open, setOpen] = useState(false)
-  
   const [searchSource, setSearchSource] = useState<"kinopoisk" | "shikimori">("kinopoisk")
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchInput, setSearchInput] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   
   const [formData, setFormData] = useState({
-    title: "",
-    poster: "",
-    description: "",
-    type: "movie" as SharedMediaItem["type"],
-    externalId: "",
+    title: "", poster: "", description: "", type: "movie" as SharedMediaItem["type"], externalId: "",
   })
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query)
-    if (query.length < 2) {
-      setSearchResults([])
-      setShowResults(false)
-      return
-    }
+  const handleSearch = async () => {
+    if (searchInput.length < 2) return
     setIsSearching(true)
     setShowResults(true)
     try {
       const endpoint = searchSource === "kinopoisk" ? "/api/search-movie" : "/api/search-anime"
-      const res = await fetch(`${endpoint}?query=${encodeURIComponent(query)}`)
+      const res = await fetch(`${endpoint}?query=${encodeURIComponent(searchInput)}`)
       const data = await res.json()
       setSearchResults(searchSource === "kinopoisk" ? (data.docs || []) : (data || []))
-    } catch {
-      setSearchResults([])
-    } finally {
-      setIsSearching(false)
-    }
+    } catch { setSearchResults([]) }
+    finally { setIsSearching(false) }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); handleSearch() }
   }
 
   const handleSelectItem = async (item: SearchResult) => {
@@ -194,39 +137,28 @@ function AddSharedMediaDialog() {
         title: movie.name,
         poster: movie.poster?.url || "",
         description: movie.description || "",
-        type: movie.type === "movie" ? "movie" : movie.type === "tv-series" ? "series" : "movie",
+        type: movie.type === "movie" ? "movie" : "series",
         externalId: movie.id.toString(),
       })
-      setSearchQuery(movie.name)
     } else {
-// При выборе аниме
-const anime = item as ShikimoriAnime
-    
-    // 🔥 Запрашиваем детальную информацию
-     let description = cleanDescription(anime.description || "")
-    
-    if (!description) {
-      try {
-        const res = await fetch(`https://shikimori.io/api/animes/${anime.id}`, {
-          headers: { 'User-Agent': 'OurCozyTracker/1.0' }
-        })
-        const detail = await res.json()
-        description = cleanDescription(detail.description || "")
-      } catch (error) {
-        console.error('Failed to fetch anime details:', error)
+      const anime = item as ShikimoriAnime
+      let description = cleanDescription(anime.description || "")
+      if (!description) {
+        try {
+          const res = await fetch(`https://shikimori.one/api/animes/${anime.id}`)
+          const detail = await res.json()
+          description = cleanDescription(detail.description || "")
+        } catch {}
       }
-    }
-    const imgPath = anime.image?.original || anime.image?.preview || ""
-    const poster = imgPath.startsWith('/') ? `https://shikimori.io${imgPath}` : imgPath
-setFormData({
-  ...formData,
-  title: anime.russian || anime.name,
-  poster: poster,
-  description: description,
-  type: anime.kind === "movie" ? "anime-movie" : "anime",
-  externalId: anime.id.toString(),
-})
-      setSearchQuery(anime.russian || anime.name)
+      const poster = getShikimoriImage(anime.image)
+      setFormData({
+        ...formData,
+        title: anime.russian || anime.name,
+        poster,
+        description,
+        type: anime.kind === "movie" ? "anime-movie" : "anime",
+        externalId: anime.id.toString(),
+      })
     }
     setShowResults(false)
     setSearchResults([])
@@ -235,27 +167,20 @@ setFormData({
   const saveToSupabase = async () => {
     const supabase = createClient()
     const { data: content, error: contentError } = await supabase
-      .from("content")
-      .upsert({
+      .from("content").upsert({
         external_id: formData.externalId || Date.now().toString(),
         content_type: formData.type,
         title_ru: formData.title,
         poster_url: formData.poster || defaultPosters[0],
         description: formData.description || null,
         updated_at: new Date(),
-      }, { onConflict: "external_id, content_type" })
-      .select()
-      .single()
+      }, { onConflict: "external_id, content_type" }).select().single()
     if (contentError) throw contentError
 
     const { error: sharedError } = await supabase
-      .from("shared_media")
-      .insert({
-        content_id: content.id,
-        added_by: activeUserId,
-        status: "planned",
-        current_season: 1,
-        current_episode: 1,
+      .from("shared_media").insert({
+        content_id: content.id, added_by: activeUserId,
+        status: "planned", current_season: 1, current_episode: 1,
       })
     if (sharedError) throw sharedError
     return content
@@ -266,33 +191,18 @@ setFormData({
     try {
       await saveToSupabase()
       addSharedMediaItem({
-        title: formData.title,
-        poster: formData.poster || defaultPosters[0],
-        description: formData.description || undefined,
-        type: formData.type,
-        status: "will-watch",
-        addedByUserId: activeUserId,
+        title: formData.title, poster: formData.poster || defaultPosters[0],
+        description: formData.description || undefined, type: formData.type,
+        status: "will-watch", addedByUserId: activeUserId,
       })
       setFormData({ title: "", poster: "", description: "", type: "movie", externalId: "" })
-      setSearchQuery("")
+      setSearchInput("")
       setOpen(false)
-    } catch {
-      alert("Ошибка при сохранении")
-    }
+    } catch { alert("Ошибка при сохранении") }
   }
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      setSearchQuery("")
-      setSearchResults([])
-      setShowResults(false)
-      setFormData({ title: "", poster: "", description: "", type: "movie", externalId: "" })
-    }
-    setOpen(newOpen)
-  }
-
-  const getYear = (item: SearchResult) => searchSource === "kinopoisk" 
-    ? (item as KinopoiskMovie).year?.toString() || "" 
+  const getYear = (item: SearchResult) => searchSource === "kinopoisk"
+    ? (item as KinopoiskMovie).year?.toString() || ""
     : (item as ShikimoriAnime).aired_on?.slice(0, 4) || ""
 
   const getTypeLabel = (item: SearchResult) => searchSource === "kinopoisk"
@@ -300,108 +210,65 @@ setFormData({
     : ((item as ShikimoriAnime).kind === "movie" ? "Аниме-фильм" : "Аниме")
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="rounded-full gap-2">
-          <Plus className="w-4 h-4" /> Добавить
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Добавить в общий список</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { setSearchInput(""); setSearchResults([]); setFormData({ title: "", poster: "", description: "", type: "movie", externalId: "" }) } setOpen(o) }}>
+      <DialogTrigger asChild><Button className="rounded-full gap-2"><Plus className="w-4 h-4" />Добавить</Button></DialogTrigger>
+      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto w-[95vw] max-w-2xl md:max-w-3xl lg:max-w-4xl">
+        <DialogHeader><DialogTitle className="text-xl">Добавить в общий список</DialogTitle></DialogHeader>
+        <div className="space-y-5 py-4">
           <div className="flex gap-2 p-1 bg-muted rounded-full">
             {searchSources.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => {
-                  setSearchSource(s.value as "kinopoisk" | "shikimori")
-                  setSearchQuery("")
-                  setSearchResults([])
-                }}
-                className={cn("flex-1 px-3 py-2 rounded-full text-sm font-medium transition-all",
-                  searchSource === s.value ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-              >
-                {s.label}
-              </button>
+              <button key={s.value} onClick={() => { setSearchSource(s.value as any); setSearchInput(""); setSearchResults([]) }}
+                className={cn("flex-1 px-4 py-2.5 rounded-full text-sm md:text-base font-medium transition-all",
+                  searchSource === s.value ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>{s.label}</button>
             ))}
           </div>
-          <div className="space-y-2 relative">
-            <Label>Поиск *</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                onFocus={() => searchResults.length > 0 && setShowResults(true)}
-                placeholder="Введите название..."
-                className="rounded-xl pl-10"
-              />
+          <div className="space-y-2">
+            <Label className="text-base">Поиск *</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={handleKeyDown}
+                  placeholder="Введите название..." className="rounded-xl pl-10 pr-4 py-6 text-base" />
+              </div>
+              <Button onClick={handleSearch} disabled={searchInput.length < 2 || isSearching}
+                className="rounded-xl px-6 py-6 text-base">{isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Найти"}</Button>
             </div>
             {showResults && (
-              <div className="absolute z-10 w-full mt-1 bg-background border rounded-xl shadow-lg max-h-60 overflow-auto">
-                {isSearching ? (
-                  <div className="p-4 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
-                ) : searchResults.length > 0 ? (
-                  searchResults.map((item) => {
-  const poster = searchSource === "kinopoisk" 
-    ? (item as KinopoiskMovie).poster?.url 
-    : (() => {
-        const img = (item as ShikimoriAnime).image
-        const path = img?.preview || img?.original || ""
-        // Если путь начинается с "/", добавляем домен Shikimori
-        return path.startsWith('/') ? `https://shikimori.io${path}` : path
-      })()
-  
-  const title = searchSource === "kinopoisk"
-    ? (item as KinopoiskMovie).name
-    : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name
-    
-  return (
-    <div
-      key={item.id}
-      className="p-3 hover:bg-muted cursor-pointer flex items-center gap-3 border-b last:border-0"
-      onClick={() => handleSelectItem(item)}
-    >
-      {poster && !poster.includes('missing') && (
-        <img 
-          src={poster} 
-          alt={title} 
-          className="w-10 h-14 object-cover rounded flex-shrink-0" 
-        />
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{title}</p>
-        <p className="text-xs text-muted-foreground">
-          {getYear(item)} • {getTypeLabel(item)}
-        </p>
-      </div>
-    </div>
-  )
-})
-                ) : searchQuery.length >= 2 ? (
-                  <div className="p-4 text-center text-sm text-muted-foreground">Ничего не найдено</div>
-                ) : null}
+              <div className="relative w-full mt-2 bg-background border rounded-xl shadow-lg max-h-80 md:max-h-96 overflow-auto z-10">
+                {isSearching ? <div className="p-6 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> :
+                 searchResults.length > 0 ? searchResults.map((item) => {
+                   const poster = searchSource === "kinopoisk" ? (item as KinopoiskMovie).poster?.url : getShikimoriImage((item as ShikimoriAnime).image)
+                   const title = searchSource === "kinopoisk" ? (item as KinopoiskMovie).name : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name
+                   return (
+                     <div key={item.id} className="p-4 hover:bg-muted cursor-pointer flex items-start gap-4 border-b last:border-0"
+                       onClick={() => handleSelectItem(item)}>
+                       {poster && !poster.includes('missing') ? <img src={poster} alt={title} className="w-14 h-20 md:w-16 md:h-24 object-cover rounded-lg shadow-sm" />
+                         : <div className="w-14 h-20 md:w-16 md:h-24 bg-muted rounded-lg flex items-center justify-center"><Film className="w-6 h-6 text-muted-foreground" /></div>}
+                       <div className="flex-1"><p className="font-medium text-base md:text-lg">{title}</p><p className="text-sm text-muted-foreground">{getYear(item)} • {getTypeLabel(item)}</p></div>
+                     </div>)
+                 }) : <div className="p-8 text-center text-muted-foreground">Ничего не найдено</div>}
+              </div>
+            )}
+            {!showResults && formData.title && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-xl flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-green-500" /> Выбрано: <span className="font-medium">{formData.title}</span>
               </div>
             )}
           </div>
           {formData.title && (
             <>
               <div className="space-y-2">
-                <Label>Описание</Label>
+                <Label className="text-base">Описание</Label>
                 <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Краткое описание..." className="rounded-xl resize-none" rows={3} />
+                  placeholder="Краткое описание..." className="rounded-xl resize-none text-base" rows={4} />
               </div>
               <div className="space-y-2">
-                <Label>Тип</Label>
+                <Label className="text-base">Тип</Label>
                 <Select value={formData.type} onValueChange={(v: SharedMediaItem["type"]) => setFormData({ ...formData, type: v })}>
-                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-xl py-6 text-base"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="movie">Фильм</SelectItem>
-                    <SelectItem value="series">Сериал</SelectItem>
-                    <SelectItem value="anime">Аниме</SelectItem>
-                    <SelectItem value="anime-movie">Аниме-фильм</SelectItem>
+                    <SelectItem value="movie">Фильм</SelectItem><SelectItem value="series">Сериал</SelectItem>
+                    <SelectItem value="anime">Аниме</SelectItem><SelectItem value="anime-movie">Аниме-фильм</SelectItem>
                     <SelectItem value="cartoon">Мультсериал</SelectItem>
                   </SelectContent>
                 </Select>
@@ -409,38 +276,33 @@ setFormData({
             </>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} className="rounded-full">Отмена</Button>
-          <Button onClick={handleSubmit} disabled={!formData.title.trim()} className="rounded-full">Добавить</Button>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)} className="rounded-full px-6 py-5 text-base">Отмена</Button>
+          <Button onClick={handleSubmit} disabled={!formData.title.trim()} className="rounded-full px-6 py-5 text-base">Добавить</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
+// ===================
+// SHARED MEDIA CARD
+// ===================
+
 function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number }) {
   const { users, activeUserId, partnerUser, updateSharedMediaItem, deleteSharedMediaItem, updateSharedMediaUserRating } = useApp()
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({
-    title: item.title,
-    description: item.description || "",
-    status: item.status,
-    currentSeason: item.currentSeason || 1,
-    currentEpisode: item.currentEpisode || 1,
-    note: item.note || "",
+    title: item.title, description: item.description || "", status: item.status,
+    currentSeason: item.currentSeason || 1, currentEpisode: item.currentEpisode || 1, note: item.note || "",
   })
-  
-  // 🔥 Индивидуальные оценки и реакции
   const [userRating, setUserRating] = useState(0)
   const [userReaction, setUserReaction] = useState("")
 
   const addedByUser = users.find((u) => u.id === item.addedByUserId)
-  
-  // 🔥 Получаем оценки обоих пользователей
   const myRating = item.userRatings?.find(r => r.user_id === activeUserId)
   const partnerRating = item.userRatings?.find(r => r.user_id === partnerUser?.id)
 
-  // 🔥 Загружаем текущие оценки при открытии редактирования
   useEffect(() => {
     if (isEditing) {
       setUserRating(myRating?.user_rating || 0)
@@ -449,35 +311,21 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
   }, [isEditing, myRating])
 
   const handleSave = async () => {
-    // Сохраняем основные данные карточки
     await updateSharedMediaItem(item.id, {
-      title: editData.title,
-      description: editData.description || undefined,
-      status: editData.status,
+      title: editData.title, description: editData.description || undefined, status: editData.status,
       currentSeason: hasEpisodes(item.type) ? editData.currentSeason : undefined,
-      currentEpisode: hasEpisodes(item.type) ? editData.currentEpisode : undefined,
-      note: editData.note || undefined,
+      currentEpisode: hasEpisodes(item.type) ? editData.currentEpisode : undefined, note: editData.note || undefined,
     })
-    
-    // 🔥 Сохраняем индивидуальную оценку и реакцию
-    await updateSharedMediaUserRating(
-      item.id, 
-      activeUserId, 
-      userRating || null, 
-      userReaction || null
-    )
-    
+    await updateSharedMediaUserRating(item.id, activeUserId, userRating || null, userReaction || null)
     setIsEditing(false)
   }
 
-  const getProgressText = () => {
+  const progressText = (() => {
     if (!hasEpisodes(item.type)) return null
     if (item.type === "anime") return item.currentEpisode ? `${item.currentEpisode} серия` : null
     if (item.currentSeason && item.currentEpisode) return `${item.currentSeason} сезон, ${item.currentEpisode} серия`
     return null
-  }
-
-  const progressText = getProgressText()
+  })()
 
   return (
     <>
@@ -485,7 +333,6 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
         <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
           <div className="relative aspect-[2/3]">
             <img src={item.poster} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-            
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 {item.description && <p className="text-white/80 text-xs mb-3 line-clamp-3">{item.description}</p>}
@@ -496,65 +343,38 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
                 </div>
               </div>
             </div>
-            
             <div className="absolute top-2 left-2">
               <span className={cn("px-2 py-1 text-xs font-medium rounded-full", mediaStatusColors[item.status])}>{mediaStatusLabels[item.status]}</span>
             </div>
-            
-            {/* 🔥 Реакция текущего пользователя */}
             {myRating?.reaction && (
               <div className="absolute top-2 right-2">
-                <span className="w-8 h-8 bg-background/80 backdrop-blur rounded-full flex items-center justify-center text-lg">
-                  {myRating.reaction}
-                </span>
+                <span className="w-8 h-8 bg-background/80 backdrop-blur rounded-full flex items-center justify-center text-lg">{myRating.reaction}</span>
               </div>
             )}
-            
             <div className="absolute bottom-2 left-2 right-2 opacity-100 group-hover:opacity-0 transition-opacity">
               <span className="px-2 py-1 text-xs bg-black/60 text-white rounded-full">{typeLabels[item.type]}</span>
             </div>
           </div>
-          
           <div className="p-3">
             <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
-                <span className="truncate">{addedByUser?.name}</span>
-              </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
+              <span className="truncate">{addedByUser?.name}</span>
             </div>
-            
-            {/* 🔥 Оценки обоих пользователей */}
             <div className="flex justify-between items-center mt-2 text-xs">
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Ты:</span>
-                {myRating?.user_rating ? (
-                  <div className="flex items-center">
-                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
-                    <span className="font-medium">{myRating.user_rating}</span>
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )}
+                {myRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{myRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">{partnerUser?.name}:</span>
-                {partnerRating?.user_rating ? (
-                  <div className="flex items-center">
-                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
-                    <span className="font-medium">{partnerRating.user_rating}</span>
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )}
+                {partnerRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{partnerRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}
               </div>
               {progressText && <span className="text-muted-foreground truncate">{progressText}</span>}
             </div>
           </div>
         </Card>
       </motion.div>
-
-      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Редактировать</DialogTitle></DialogHeader>
@@ -566,10 +386,8 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
               <Select value={editData.status} onValueChange={(v: SharedMediaItem["status"]) => setEditData({ ...editData, status: v })}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="will-watch">Будем смотреть</SelectItem>
-                  <SelectItem value="watching">Смотрим</SelectItem>
-                  <SelectItem value="watched">Посмотрели</SelectItem>
-                  <SelectItem value="dropped">Бросили</SelectItem>
+                  <SelectItem value="will-watch">Будем смотреть</SelectItem><SelectItem value="watching">Смотрим</SelectItem>
+                  <SelectItem value="watched">Посмотрели</SelectItem><SelectItem value="dropped">Бросили</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -579,32 +397,24 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
                 <div className={cn("space-y-2", item.type === "anime" && "col-span-2")}><Label>Серия</Label><Input type="number" min={1} value={editData.currentEpisode} onChange={(e) => setEditData({ ...editData, currentEpisode: parseInt(e.target.value) || 1 })} className="rounded-xl" /></div>
               </div>
             )}
-            
-            {/* 🔥 Индивидуальная оценка */}
             <div className="space-y-2">
-              <Label>Твоя оценка (1-10)</Label>
+              <Label>Твоя оценка</Label>
               <div className="flex gap-0.5 flex-wrap">
                 {Array.from({ length: 10 }).map((_, i) => (
                   <button key={i} onClick={() => setUserRating(i + 1)} className="p-0.5">
-                    <Star className={cn("w-5 h-5 transition-colors", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground hover:text-amber-500")} />
+                    <Star className={cn("w-5 h-5", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
                   </button>
                 ))}
-                {userRating > 0 && (
-                  <button onClick={() => setUserRating(0)} className="ml-2 p-1">
-                    <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                  </button>
-                )}
+                {userRating > 0 && <button onClick={() => setUserRating(0)} className="ml-2 p-1"><X className="w-4 h-4" /></button>}
               </div>
             </div>
-            
             <div className="space-y-2"><Label>Заметка</Label><Textarea value={editData.note} onChange={(e) => setEditData({ ...editData, note: e.target.value })} className="rounded-xl resize-none" rows={2} /></div>
-            
-            {/* 🔥 Индивидуальная реакция */}
             <div className="space-y-2">
               <Label>Твоя реакция</Label>
               <div className="flex gap-2 flex-wrap">
                 {["💕", "🔥", "😍", "👍", "😢", "😱", "🤯", "💤"].map((e) => (
-                  <button key={e} onClick={() => setUserReaction(userReaction === e ? "" : e)} className={cn("w-10 h-10 rounded-xl text-xl", userReaction === e ? "bg-primary/20 ring-2 ring-primary" : "bg-muted")}>{e}</button>
+                  <button key={e} onClick={() => setUserReaction(userReaction === e ? "" : e)}
+                    className={cn("w-10 h-10 rounded-xl text-xl", userReaction === e ? "bg-primary/20 ring-2 ring-primary" : "bg-muted")}>{e}</button>
                 ))}
               </div>
             </div>
@@ -620,17 +430,15 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
 }
 
 // ===================
-// GAMES SECTION (аналогично AddGameDialog из предыдущего ответа, с поиском через RAWG)
+// GAMES SECTION (оставляю компактно, но с кнопкой поиска)
 // ===================
 
 type GameTab = "planning" | "playing" | "completed" | "dropped"
 type FilterPlatform = "all" | GamePlatform
 
 const gameTabs: { value: GameTab; label: string; icon: React.ElementType }[] = [
-  { value: "planning", label: "Планируем", icon: Clock },
-  { value: "playing", label: "Играем", icon: Play },
-  { value: "completed", label: "Прошли", icon: Trophy },
-  { value: "dropped", label: "Бросили", icon: Ban },
+  { value: "planning", label: "Планируем", icon: Clock }, { value: "playing", label: "Играем", icon: Play },
+  { value: "completed", label: "Прошли", icon: Trophy }, { value: "dropped", label: "Бросили", icon: Ban },
 ]
 
 const platformOptions: { value: FilterPlatform; label: string }[] = [
@@ -664,7 +472,7 @@ interface RAWGGame {
 function AddGameDialog() {
   const { addSharedGameItem, activeUserId } = useApp()
   const [open, setOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchInput, setSearchInput] = useState("")
   const [searchResults, setSearchResults] = useState<RAWGGame[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
@@ -672,12 +480,11 @@ function AddGameDialog() {
     title: "", cover: "", description: "", platforms: [] as GamePlatform[], genres: "", externalId: "",
   })
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query)
-    if (query.length < 2) { setSearchResults([]); setShowResults(false); return }
+  const handleSearch = async () => {
+    if (searchInput.length < 2) return
     setIsSearching(true); setShowResults(true)
     try {
-      const res = await fetch(`/api/search-game?query=${encodeURIComponent(query)}`)
+      const res = await fetch(`/api/search-game?query=${encodeURIComponent(searchInput)}`)
       const data = await res.json()
       setSearchResults(data.results || [])
     } catch { setSearchResults([]) } finally { setIsSearching(false) }
@@ -698,7 +505,7 @@ function AddGameDialog() {
       description: game.description_raw || "", platforms: [...new Set(mapped)],
       genres: game.genres?.map(g => g.name).join(", ") || "", externalId: game.id.toString(),
     })
-    setSearchQuery(game.name); setShowResults(false); setSearchResults([])
+    setShowResults(false); setSearchResults([])
   }
 
   const saveToSupabase = async () => {
@@ -723,110 +530,89 @@ function AddGameDialog() {
     try {
       await saveToSupabase()
       addSharedGameItem({
-        title: formData.title, cover: formData.cover || defaultCovers[0],
-        description: formData.description || undefined,
+        title: formData.title, cover: formData.cover || defaultCovers[0], description: formData.description || undefined,
         platforms: formData.platforms.length ? formData.platforms : ["pc"],
         genres: formData.genres ? formData.genres.split(",").map(g => g.trim()) : undefined,
         status: "planning", addedByUserId: activeUserId,
       })
       setFormData({ title: "", cover: "", description: "", platforms: [], genres: "", externalId: "" })
-      setSearchQuery(""); setOpen(false)
+      setSearchInput(""); setOpen(false)
     } catch { alert("Ошибка при сохранении") }
   }
 
-  const togglePlatform = (p: GamePlatform) => setFormData(prev => ({
-    ...prev, platforms: prev.platforms.includes(p) ? prev.platforms.filter(x => x !== p) : [...prev.platforms, p]
-  }))
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { if(!o){ setSearchQuery(""); setFormData({ title: "", cover: "", description: "", platforms: [], genres: "", externalId: "" }) } setOpen(o) }}>
+    <Dialog open={open} onOpenChange={(o) => { if(!o){ setSearchInput(""); setFormData({ title: "", cover: "", description: "", platforms: [], genres: "", externalId: "" }) } setOpen(o) }}>
       <DialogTrigger asChild><Button className="rounded-full gap-2"><Plus className="w-4 h-4" />Добавить игру</Button></DialogTrigger>
-      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Добавить игру</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2 relative">
-            <Label>Поиск *</Label>
-            <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input value={searchQuery} onChange={(e) => handleSearch(e.target.value)} onFocus={() => searchResults.length > 0 && setShowResults(true)} placeholder="Введите название игры..." className="rounded-xl pl-10" />
+      <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto w-[95vw] max-w-2xl">
+        <DialogHeader><DialogTitle className="text-xl">Добавить игру</DialogTitle></DialogHeader>
+        <div className="space-y-5 py-4">
+          <div className="space-y-2">
+            <Label className="text-base">Поиск *</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  placeholder="Введите название игры..." className="rounded-xl pl-10 pr-4 py-6 text-base" />
+              </div>
+              <Button onClick={handleSearch} disabled={searchInput.length < 2 || isSearching}
+                className="rounded-xl px-6 py-6 text-base">{isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Найти"}</Button>
             </div>
             {showResults && (
-              <div className="absolute z-10 w-full mt-1 bg-background border rounded-xl shadow-lg max-h-60 overflow-auto">
-                {isSearching ? <div className="p-4 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div> :
+              <div className="relative w-full mt-2 bg-background border rounded-xl shadow-lg max-h-80 overflow-auto z-10">
+                {isSearching ? <div className="p-6 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> :
                  searchResults.length > 0 ? searchResults.map(g => (
-                  <div key={g.id} className="p-3 hover:bg-muted cursor-pointer flex gap-3" onClick={() => handleSelectGame(g)}>
-                    {g.background_image && <img src={g.background_image} alt={g.name} className="w-10 h-10 object-cover rounded" />}
-                    <div><p className="font-medium">{g.name}</p><p className="text-xs text-muted-foreground">{g.released?.slice(0,4)||""}</p></div>
+                  <div key={g.id} className="p-4 hover:bg-muted cursor-pointer flex items-start gap-4 border-b last:border-0" onClick={() => handleSelectGame(g)}>
+                    {g.background_image ? <img src={g.background_image} alt={g.name} className="w-14 h-14 object-cover rounded-lg" />
+                      : <div className="w-14 h-14 bg-muted rounded-lg flex items-center justify-center"><Gamepad2 className="w-6 h-6 text-muted-foreground" /></div>}
+                    <div><p className="font-medium text-base">{g.name}</p><p className="text-sm text-muted-foreground">{g.released?.slice(0,4)||""}</p></div>
                   </div>
-                )) : searchQuery.length >= 2 ? <div className="p-4 text-center text-sm text-muted-foreground">Ничего не найдено</div> : null}
+                )) : <div className="p-8 text-center text-muted-foreground">Ничего не найдено</div>}
+              </div>
+            )}
+            {!showResults && formData.title && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-xl flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-green-500" /> Выбрано: <span className="font-medium">{formData.title}</span>
               </div>
             )}
           </div>
           {formData.title && (
             <>
-              <div className="space-y-2"><Label>Описание</Label><Textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="rounded-xl resize-none" rows={3} /></div>
-              <div className="space-y-2"><Label>Платформы</Label><div className="flex flex-wrap gap-2">{Object.keys(platformLabels).map((p) => <button key={p} onClick={() => togglePlatform(p as GamePlatform)} className={cn("px-3 py-1.5 rounded-full text-sm", formData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted")}>{platformLabels[p as GamePlatform]}</button>)}</div></div>
-              <div className="space-y-2"><Label>Жанры (через запятую)</Label><Input value={formData.genres} onChange={(e) => setFormData({...formData, genres: e.target.value})} className="rounded-xl" /></div>
+              <div className="space-y-2"><Label className="text-base">Описание</Label><Textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="rounded-xl resize-none text-base" rows={4} /></div>
+              <div className="space-y-2"><Label className="text-base">Платформы</Label><div className="flex flex-wrap gap-2">{Object.keys(platformLabels).map((p) => <button key={p} onClick={() => setFormData(prev => ({ ...prev, platforms: prev.platforms.includes(p as GamePlatform) ? prev.platforms.filter(x => x !== p) : [...prev.platforms, p as GamePlatform] }))} className={cn("px-3 py-1.5 rounded-full text-sm", formData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted")}>{platformLabels[p as GamePlatform]}</button>)}</div></div>
+              <div className="space-y-2"><Label className="text-base">Жанры (через запятую)</Label><Input value={formData.genres} onChange={(e) => setFormData({...formData, genres: e.target.value})} className="rounded-xl py-6 text-base" /></div>
             </>
           )}
         </div>
-        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} className="rounded-full">Отмена</Button><Button onClick={handleSubmit} disabled={!formData.title.trim()} className="rounded-full">Добавить</Button></DialogFooter>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)} className="rounded-full px-6 py-5 text-base">Отмена</Button>
+          <Button onClick={handleSubmit} disabled={!formData.title.trim()} className="rounded-full px-6 py-5 text-base">Добавить</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-// ... предыдущий код ...
 
 function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }) {
   const { users, activeUserId, partnerUser, updateSharedGameItem, deleteSharedGameItem, updateSharedGameUserRating } = useApp()
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({
-    title: item.title,
-    description: item.description || "",
-    status: item.status,
-    platforms: item.platforms,
-    note: item.note || "",
+    title: item.title, description: item.description || "", status: item.status, platforms: item.platforms, note: item.note || "",
   })
-  
-  // 🔥 Индивидуальная оценка
   const [userRating, setUserRating] = useState(0)
-
   const addedByUser = users.find((u) => u.id === item.addedByUserId)
-  
-  // 🔥 Получаем оценки обоих пользователей
   const myRating = item.userRatings?.find(r => r.user_id === activeUserId)
   const partnerRating = item.userRatings?.find(r => r.user_id === partnerUser?.id)
 
-  // 🔥 Загружаем текущую оценку при открытии редактирования
-  useEffect(() => {
-    if (isEditing) {
-      setUserRating(myRating?.user_rating || 0)
-    }
-  }, [isEditing, myRating])
+  useEffect(() => { if (isEditing) setUserRating(myRating?.user_rating || 0) }, [isEditing, myRating])
 
   const handleSave = async () => {
-    // Сохраняем основные данные карточки
     await updateSharedGameItem(item.id, {
-      title: editData.title,
-      description: editData.description || undefined,
-      status: editData.status,
-      platforms: editData.platforms,
-      note: editData.note || undefined,
+      title: editData.title, description: editData.description || undefined, status: editData.status,
+      platforms: editData.platforms, note: editData.note || undefined,
     })
-    
-    // 🔥 Сохраняем индивидуальную оценку
-    await updateSharedGameUserRating(
-      item.id,
-      activeUserId,
-      userRating || null,
-      null  // для игр пока без реакций
-    )
-    
+    await updateSharedGameUserRating(item.id, activeUserId, userRating || null, null)
     setIsEditing(false)
   }
-
-  const togglePlatform = (p: GamePlatform) => setEditData(prev => ({
-    ...prev, platforms: prev.platforms.includes(p) ? prev.platforms.filter(x => x !== p) : [...prev.platforms, p]
-  }))
 
   return (
     <>
@@ -854,43 +640,17 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
           </div>
           <div className="p-3">
             <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
-                <span className="truncate">{addedByUser?.name}</span>
-              </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
+              <span className="truncate">{addedByUser?.name}</span>
             </div>
-            
-            {/* 🔥 Оценки обоих пользователей */}
             <div className="flex justify-between items-center mt-2 text-xs">
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Ты:</span>
-                {myRating?.user_rating ? (
-                  <div className="flex items-center">
-                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
-                    <span className="font-medium">{myRating.user_rating}</span>
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">{partnerUser?.name}:</span>
-                {partnerRating?.user_rating ? (
-                  <div className="flex items-center">
-                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
-                    <span className="font-medium">{partnerRating.user_rating}</span>
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )}
-              </div>
+              <div className="flex items-center gap-1"><span className="text-muted-foreground">Ты:</span>{myRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{myRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}</div>
+              <div className="flex items-center gap-1"><span className="text-muted-foreground">{partnerUser?.name}:</span>{partnerRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{partnerRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}</div>
             </div>
           </div>
         </Card>
       </motion.div>
-
-      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Редактировать игру</DialogTitle></DialogHeader>
@@ -902,41 +662,22 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
               <Select value={editData.status} onValueChange={(v: SharedGameItem["status"]) => setEditData({ ...editData, status: v })}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="planning">Планируем</SelectItem>
-                  <SelectItem value="playing">Играем</SelectItem>
-                  <SelectItem value="completed">Прошли</SelectItem>
-                  <SelectItem value="dropped">Бросили</SelectItem>
+                  <SelectItem value="planning">Планируем</SelectItem><SelectItem value="playing">Играем</SelectItem>
+                  <SelectItem value="completed">Прошли</SelectItem><SelectItem value="dropped">Бросили</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>Платформы</Label><div className="flex flex-wrap gap-2">{Object.keys(platformLabels).map((p) => <button key={p} onClick={() => togglePlatform(p as GamePlatform)} className={cn("px-3 py-1.5 rounded-full text-sm", editData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted")}>{platformLabels[p as GamePlatform]}</button>)}</div></div>
-            
-            {/* 🔥 Индивидуальная оценка */}
-            <div className="space-y-2">
-              <Label>Твоя оценка (1-10)</Label>
-              <div className="flex gap-0.5">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <button key={i} onClick={() => setUserRating(i + 1)}>
-                    <Star className={cn("w-5 h-5", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
-                  </button>
-                ))}
-                {userRating > 0 && (
-                  <button onClick={() => setUserRating(0)}><X className="w-4 h-4" /></button>
-                )}
-              </div>
-            </div>
-            
+            <div className="space-y-2"><Label>Платформы</Label><div className="flex flex-wrap gap-2">{Object.keys(platformLabels).map((p) => <button key={p} onClick={() => setEditData(prev => ({ ...prev, platforms: prev.platforms.includes(p as GamePlatform) ? prev.platforms.filter(x => x !== p) : [...prev.platforms, p as GamePlatform] }))} className={cn("px-3 py-1.5 rounded-full text-sm", editData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted")}>{platformLabels[p as GamePlatform]}</button>)}</div></div>
+            <div className="space-y-2"><Label>Твоя оценка</Label><div className="flex gap-0.5">{Array.from({ length: 10 }).map((_, i) => <button key={i} onClick={() => setUserRating(i + 1)}><Star className={cn("w-5 h-5", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} /></button>)}{userRating > 0 && <button onClick={() => setUserRating(0)}><X className="w-4 h-4" /></button>}</div></div>
             <div className="space-y-2"><Label>Заметка</Label><Textarea value={editData.note} onChange={(e) => setEditData({ ...editData, note: e.target.value })} className="rounded-xl resize-none" rows={2} /></div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>Отмена</Button>
-            <Button onClick={handleSave}>Сохранить</Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setIsEditing(false)}>Отмена</Button><Button onClick={handleSave}>Сохранить</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   )
 }
+
 // ===================
 // MAIN PAGE
 // ===================
@@ -968,22 +709,16 @@ export default function SharedPage() {
   const filteredMedia = useMemo(() => {
     let items = sharedMediaItems.filter(m => m.status === mediaTab)
     if (filterType !== "all") items = items.filter(m => m.type === filterType)
-    items.sort((a, b) => mediaSortBy === "date" ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() : mediaSortBy === "rating" ? (b.rating || 0) - (a.rating || 0) : a.title.localeCompare(b.title))
+    items.sort((a, b) => mediaSortBy === "date" ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() : mediaSortBy === "rating" ? ((b.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0) - (a.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0)) : a.title.localeCompare(b.title))
     return items
-  }, [sharedMediaItems, mediaTab, filterType, mediaSortBy])
+  }, [sharedMediaItems, mediaTab, filterType, mediaSortBy, users])
 
   const filteredGames = useMemo(() => {
     let items = sharedGameItems.filter(g => g.status === gameTab)
     if (filterPlatform !== "all") items = items.filter(g => g.platforms.includes(filterPlatform))
-    items.sort((a, b) => gameSortBy === "date" ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() : gameSortBy === "rating" ? (b.rating || 0) - (a.rating || 0) : a.title.localeCompare(b.title))
+    items.sort((a, b) => gameSortBy === "date" ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() : gameSortBy === "rating" ? ((b.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0) - (a.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0)) : a.title.localeCompare(b.title))
     return items
-  }, [sharedGameItems, gameTab, filterPlatform, gameSortBy])
-
-  // Где-нибудь в SharedPage после загрузки данных
-useEffect(() => {
-  console.log('Все элементы:', sharedMediaItems.map(m => m.type))
-  console.log('Аниме-фильмы:', sharedMediaItems.filter(m => m.type === 'anime-movie'))
-}, [sharedMediaItems])
+  }, [sharedGameItems, gameTab, filterPlatform, gameSortBy, users])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-8">

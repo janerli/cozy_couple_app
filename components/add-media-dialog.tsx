@@ -65,7 +65,7 @@ type SearchResult = KinopoiskMovie | ShikimoriAnime
 const getShikimoriImage = (image: ShikimoriAnime['image']) => {
   if (!image) return ""
   const path = image.preview || image.original || ""
-  return path.startsWith('/') ? `https://shikimori.one${path}` : path
+  return path.startsWith('/') ? `https://shikimori.io${path}` : path
 }
 
 export function AddMediaDialog() {
