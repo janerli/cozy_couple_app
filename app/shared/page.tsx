@@ -76,8 +76,15 @@ const cleanDescription = (text: string) => {
 }
 
 interface KinopoiskMovie {
-  id: number; name: string; description?: string; poster?: { url: string }
-  year?: number; type: "movie" | "tv-series"
+  id: number
+  name: string
+  description?: string
+  poster?: { url: string }
+  year?: number
+  type: "movie" | "tv-series" | "cartoon" | "anime"
+  typeNumber?: number  // ← 3 = мультфильм, 4/5 = мультсериал
+  seriesLength?: number  // ← количество серий (если есть)
+  seasonsCount?: number  // ← количество сезонов (если есть)
 }
 
 interface ShikimoriAnime {
@@ -150,14 +157,29 @@ function AddSharedMediaDialog() {
   const handleSelectItem = async (item: SearchResult) => {
     if (searchSource === "kinopoisk") {
       const movie = item as KinopoiskMovie
+
+      const mapCartoonType = (): SharedMediaItem["type"] => {
+      if (movie.type === "cartoon") {
+        // Проверяем есть ли серии или сезоны
+        const hasEpisodes = (movie as any).seriesLength > 0 || (movie as any).seasonsCount > 0
+        // Если есть серии — это мультсериал, иначе — мультфильм
+        return hasEpisodes ? "cartoon" : "movie"
+      }
+      // Для остальных типов
+      if (movie.type === "movie") return "movie"
+      if (movie.type === "tv-series") return "series"
+      if (movie.type === "anime") return "anime"
+      return "movie"
+    }
+
       setFormData({
-        ...formData,
-        title: movie.name,
-        poster: movie.poster?.url || "",
-        description: movie.description || "",
-        type: movie.type === "movie" ? "movie" : "series",
-        externalId: movie.id.toString(),
-      })
+  ...formData,
+  title: movie.name,
+  poster: movie.poster?.url || "",
+  description: movie.description || "",
+  type: mapCartoonType(),  // ← используем правильный маппинг
+  externalId: movie.id.toString(),
+})
     } else {
       const anime = item as ShikimoriAnime
       let description = cleanDescription(anime.description || "")
@@ -230,10 +252,20 @@ function AddSharedMediaDialog() {
     ? (item as KinopoiskMovie).year?.toString() || ""
     : (item as ShikimoriAnime).airedOn?.year?.toString() || ""
 
-  const getTypeLabel = (item: SearchResult) => searchSource === "kinopoisk"
-    ? ((item as KinopoiskMovie).type === "movie" ? "Фильм" : "Сериал")
-    : ((item as ShikimoriAnime).kind === "movie" ? "Аниме-фильм" : "Аниме")
-
+  const getTypeLabel = (item: SearchResult) => {
+  if (searchSource === "kinopoisk") {
+    const movie = item as KinopoiskMovie
+    switch (movie.type) {
+      case "movie": return "Фильм"
+      case "tv-series": return "Сериал"
+      case "cartoon": return "Мультсериал"
+      default: return "Фильм"
+    }
+  } else {
+    const anime = item as ShikimoriAnime
+    return anime.kind === "movie" ? "Аниме-фильм" : "Аниме"
+  }
+}
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { setSearchInput(""); setSearchResults([]); setFormData({ title: "", poster: "", description: "", type: "movie", externalId: "" }) } setOpen(o) }}>
       <DialogTrigger asChild><Button className="rounded-full gap-2"><Plus className="w-4 h-4" />Добавить</Button></DialogTrigger>
