@@ -209,6 +209,7 @@ function WishlistCard({
   isOwner: boolean
 }) {
   const { updateWishlistItem, deleteWishlistItem, activeUserId, users } = useApp()
+  const [isViewing, setIsViewing] = useState(false)
   const owner = users.find((u) => u.id === item.userId)
 
   const handleReserve = () => {
@@ -223,103 +224,208 @@ function WishlistCard({
   const isReservedByMe = item.reservedBy === activeUserId
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      layout
-    >
-      <Card className={cn(
-        "overflow-hidden soft-shadow dark:neon-glow group",
-        isReserved && !isOwner && "opacity-60"
-      )}>
-        <div className="relative aspect-square">
-          <img
-            src={item.imageUrl}
-            alt={item.name}
-            className="w-full h-full object-cover"
-          />
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 }}
+        layout
+      >
+        <Card className={cn(
+          "overflow-hidden soft-shadow dark:neon-glow group cursor-pointer",
+          isReserved && !isOwner && "opacity-60"
+        )}>
+          <div className="relative aspect-square bg-muted" onClick={() => setIsViewing(true)}>
+            <img
+              src={item.imageUrl}
+              alt={item.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            
+            {/* Затемнение */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </div>
+            
+            {/* Контент оверлея */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  {item.link && (
+                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <Button size="sm" variant="secondary" className="rounded-full w-full h-9 gap-1">
+                        <ExternalLink className="w-3 h-3" />
+                        Открыть
+                      </Button>
+                    </a>
+                  )}
+                  {!isOwner && (
+                    <Button
+                      size="sm"
+                      variant={isReservedByMe ? "destructive" : "default"}
+                      className="rounded-full h-9 px-4"
+                      onClick={handleReserve}
+                    >
+                      {isReservedByMe ? "Отменить" : "Зарезервировать"}
+                    </Button>
+                  )}
+                  {isOwner && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="rounded-full h-9 w-9 p-0"
+                      onClick={() => deleteWishlistItem(item.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Reserved overlay */}
+            {isReserved && !isOwner && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
+                  Зарезервировано
+                </span>
+              </div>
+            )}
+            
+            {/* Owner badge */}
+            <div className="absolute top-2 left-2 z-10">
+              <UserAvatar avatar={owner?.avatar || ''} name={owner?.name || ''} size="md" className="bg-card/90 shadow-lg" />
+            </div>
+            
+            {/* Priority badge */}
+            <div className="absolute top-2 right-2 z-10">
+              <span className={cn(
+                "px-2 py-1 text-xs font-medium rounded-full shadow-lg",
+                priorityColors[item.priority]
+              )}>
+                {priorityLabels[item.priority]}
+              </span>
+            </div>
+          </div>
           
-          {/* Reserved overlay */}
-          {isReserved && !isOwner && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-              <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
-                Зарезервировано
+          <CardContent className="p-3">
+            <h3 className="font-medium text-sm truncate mb-1">{item.name}</h3>
+            <div className="flex items-center justify-between text-sm">
+              {item.price ? (
+                <span className="text-primary font-semibold">
+                  {item.price.toLocaleString("ru-RU")} ₽
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Без цены</span>
+              )}
+              {isOwner && isReserved && (
+                <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Кто-то взял
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* 🔥 ПРОСМОТР */}
+<Dialog open={isViewing} onOpenChange={setIsViewing}>
+  <DialogContent className="!max-w-2xl !w-[90vw] rounded-2xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="text-xl font-bold">{item.name}</DialogTitle>
+    </DialogHeader>
+    
+    <div className="flex flex-col md:flex-row gap-6 py-4">
+      <div className="md:w-1/2 flex-shrink-0">
+        <img src={item.imageUrl} alt={item.name} className="w-full aspect-square object-cover rounded-xl shadow-lg" />
+      </div>
+      
+      <div className="md:w-1/2 space-y-4">
+        {/* Категория и приоритет */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn("px-3 py-1 text-sm font-medium rounded-full", priorityColors[item.priority])}>
+            {priorityLabels[item.priority]}
+          </span>
+          {(() => {
+            const cat = categoryOptions.find(c => c.value === item.category)
+            const CatIcon = cat?.icon
+            return (
+              <span className="px-3 py-1 text-sm bg-muted rounded-full flex items-center gap-1">
+                {CatIcon && <CatIcon className="w-3 h-3" />}
+                {cat?.label}
               </span>
-            </div>
-          )}
-
-{/* Owner badge */}
-<div className="absolute top-2 left-2">
-  <UserAvatar avatar={owner?.avatar || ''} name={owner?.name || ''} size="md" className="bg-card/90" />
-</div>
-
-          {/* Priority badge */}
-          <div className="absolute top-2 right-2">
-            <span className={cn(
-              "px-2 py-1 text-xs font-medium rounded-full",
-              priorityColors[item.priority]
-            )}>
-              {priorityLabels[item.priority]}
-            </span>
-          </div>
-
-          {/* Hover actions */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all">
-            <div className="absolute bottom-0 left-0 right-0 p-3 flex gap-2">
-              {item.link && (
-                <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex-1">
-                  <Button size="sm" variant="secondary" className="rounded-full w-full gap-1">
-                    <ExternalLink className="w-3 h-3" />
-                    Открыть
-                  </Button>
-                </a>
-              )}
-              {!isOwner && (
-                <Button
-                  size="sm"
-                  variant={isReservedByMe ? "destructive" : "default"}
-                  className="rounded-full"
-                  onClick={handleReserve}
-                >
-                  {isReservedByMe ? "Отменить" : "Зарезервировать"}
-                </Button>
-              )}
-              {isOwner && (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="rounded-full"
-                  onClick={() => deleteWishlistItem(item.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          </div>
+            )
+          })()}
         </div>
-        <CardContent className="p-3">
-          <h3 className="font-medium text-sm truncate mb-1">{item.name}</h3>
-          <div className="flex items-center justify-between text-sm">
-            {item.price ? (
-              <span className="text-primary font-semibold">
-                {item.price.toLocaleString("ru-RU")} ₽
-              </span>
-            ) : (
-              <span className="text-muted-foreground">Без цены</span>
-            )}
-            {isOwner && isReserved && (
-              <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                <Check className="w-3 h-3" /> Кто-то взял
-              </span>
-            )}
+        
+        {/* Цена */}
+        {item.price ? (
+          <div>
+            <h3 className="font-semibold text-lg mb-1">Цена</h3>
+            <p className="text-2xl font-bold text-primary">{item.price.toLocaleString("ru-RU")} ₽</p>
           </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+        ) : (
+          <p className="text-muted-foreground">Без цены</p>
+        )}
+        
+        {/* Ссылка */}
+        {item.link && (
+          <div>
+            <h3 className="font-semibold text-lg mb-2">Ссылка</h3>
+            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+              {item.link}
+            </a>
+          </div>
+        )}
+        
+        {/* Кто добавил */}
+        <div className="flex items-center gap-2 pt-4 border-t">
+          <UserAvatar avatar={owner?.avatar || ''} name={owner?.name || ''} size="sm" />
+          <span className="text-sm text-muted-foreground">
+            Добавил(а): <span className="font-medium text-foreground">{owner?.name}</span>
+          </span>
+        </div>
+        
+        {/* Статус резерва */}
+        {isReserved && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            <p className="text-amber-600 dark:text-amber-400 font-medium">
+              🎁 Зарезервировано{isOwner && isReservedByMe ? " тобой" : ""}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+    
+    <DialogFooter className="gap-2">
+      <Button variant="outline" onClick={() => setIsViewing(false)} className="rounded-full px-6 py-5">
+        Закрыть
+      </Button>
+      {item.link && (
+        <a href={item.link} target="_blank" rel="noopener noreferrer">
+          <Button className="rounded-full px-6 py-5 gap-1">
+            <ExternalLink className="w-4 h-4" /> Открыть
+          </Button>
+        </a>
+      )}
+      {!isOwner && (
+        <Button
+          variant={isReservedByMe ? "destructive" : "default"}
+          className="rounded-full px-6 py-5"
+          onClick={() => {
+            handleReserve()
+            setIsViewing(false)
+          }}
+        >
+          {isReservedByMe ? "Отменить" : "Зарезервировать"}
+        </Button>
+      )}
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+    </>
   )
 }
-
 export default function WishlistPage() {
   const { wishlistItems, users, activeUserId } = useApp()
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")

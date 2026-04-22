@@ -111,7 +111,7 @@ type AppContextType = {
   updateMediaItem: (id: string, updates: Partial<MediaItem>) => Promise<void>
   deleteMediaItem: (id: string) => Promise<void>
   sharedMediaItems: SharedMediaItem[]
-  addSharedMediaItem: (item: Omit<SharedMediaItem, "id" | "addedAt">) => Promise<void>
+  addSharedMediaItem: (item: SharedMediaItem) => void  // ← убрать Omit и Promise
   updateSharedMediaItem: (id: string, updates: Partial<SharedMediaItem>) => Promise<void>
   updateSharedMediaUserRating: (sharedMediaId: string, userId: string, rating: number | null, reaction: string | null) => Promise<void>
   deleteSharedMediaItem: (id: string) => Promise<void>
@@ -144,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([])
   const [activeUserId, setActiveUserId] = useState<string>(USER_IDS.YOU)
   const [isLoading, setIsLoading] = useState(true)
-  
+
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [sharedMediaItems, setSharedMediaItems] = useState<SharedMediaItem[]>([])
   const [sharedGameItems, setSharedGameItems] = useState<SharedGameItem[]>([])
@@ -205,7 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id, status, user_rating, current_season, current_episode, added_at, user_id,
         content:content_id (title_ru, title_en, poster_url, description, content_type)
       `)
-    
+
     if (data) {
       setMediaItems(data.map((item: any) => ({
         id: item.id,
@@ -223,58 +223,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-const loadSharedMediaItems = async () => {
-  const { data } = await supabase
-    .from("shared_media")
-    .select(`
+  const loadSharedMediaItems = async () => {
+    const { data } = await supabase
+      .from("shared_media")
+      .select(`
       id, status, current_season, current_episode, added_at, added_by, notes,
       content:content_id (title_ru, title_en, poster_url, description, content_type),
       user_ratings:shared_media_user(*)
     `)
-  
-  if (data) {
-    setSharedMediaItems(data.map((item: any) => ({
-      id: item.id,
-      title: item.content?.title_ru || item.content?.title_en || "Без названия",
-      poster: item.content?.poster_url || "",
-      description: item.content?.description,
-      type: mapContentType(item.content?.content_type),
-      status: mapSharedStatus(item.status),
-      currentSeason: item.current_season,
-      currentEpisode: item.current_episode,
-      addedAt: new Date(item.added_at),
-      addedByUserId: item.added_by,
-      note: item.notes,
-      userRatings: item.user_ratings || [],
-    })))
-  }
-}
 
-const loadSharedGameItems = async () => {
-  const { data } = await supabase
-    .from("shared_games")
-    .select(`
+    if (data) {
+      setSharedMediaItems(data.map((item: any) => ({
+        id: item.id,
+        title: item.content?.title_ru || item.content?.title_en || "Без названия",
+        poster: item.content?.poster_url || "",
+        description: item.content?.description,
+        type: mapContentType(item.content?.content_type),
+        status: mapSharedStatus(item.status),
+        currentSeason: item.current_season,
+        currentEpisode: item.current_episode,
+        addedAt: new Date(item.added_at),
+        addedByUserId: item.added_by,
+        note: item.notes,
+        userRatings: item.user_ratings || [],
+      })))
+    }
+  }
+
+  const loadSharedGameItems = async () => {
+    const { data } = await supabase
+      .from("shared_games")
+      .select(`
       id, status, added_at, added_by, notes, platforms,
       content:content_id (title_ru, title_en, poster_url, description, genres),
       user_ratings:shared_games_user(*)
     `)
-  
-  if (data) {
-    setSharedGameItems(data.map((item: any) => ({
-      id: item.id,
-      title: item.content?.title_ru || item.content?.title_en || "Без названия",
-      cover: item.content?.poster_url || "",
-      description: item.content?.description,
-      platforms: item.platforms || [],
-      genres: item.content?.genres || [],
-      status: mapGameStatus(item.status),
-      addedAt: new Date(item.added_at),
-      addedByUserId: item.added_by,
-      note: item.notes,
-      userRatings: item.user_ratings || [],
-    })))
+
+    if (data) {
+      setSharedGameItems(data.map((item: any) => ({
+        id: item.id,
+        title: item.content?.title_ru || item.content?.title_en || "Без названия",
+        cover: item.content?.poster_url || "",
+        description: item.content?.description,
+        platforms: item.platforms || [],
+        genres: item.content?.genres || [],
+        status: mapGameStatus(item.status),
+        addedAt: new Date(item.added_at),
+        addedByUserId: item.added_by,
+        note: item.notes,
+        userRatings: item.user_ratings || [],
+      })))
+    }
   }
-}
 
   const loadWishlistItems = async () => {
     const { data } = await supabase.from("wishlist").select("*")
@@ -358,78 +358,77 @@ const loadSharedGameItems = async () => {
     }
   }
 
-  const addSharedMediaItem = async (item: Omit<SharedMediaItem, "id" | "addedAt">) => {
-    const newItem: SharedMediaItem = { ...item, id: `temp-${Date.now()}`, addedAt: new Date() }
-    setSharedMediaItems(prev => [newItem, ...prev])
-  }
-
-const updateSharedMediaItem = async (id: string, updates: Partial<SharedMediaItem>) => {
-  const supabase = createClient()
-  
-  const mapStatusToDb = (status?: string) => {
-    if (status === "will-watch") return "planned"
-    if (status === "watching") return "watching"
-    if (status === "watched") return "watched"
-    if (status === "dropped") return "dropped"
-    return "planned"
-  }
-  
-  const { error } = await supabase
-    .from("shared_media")
-    .update({
-      status: mapStatusToDb(updates.status),
-      current_season: updates.currentSeason || null,
-      current_episode: updates.currentEpisode || null,
-      notes: updates.note || null,
-      updated_at: new Date(),
-    })
-    .eq("id", id)
-  
-  if (error) throw error
-  
-  setSharedMediaItems(prev =>
-    prev.map(item => item.id === id ? { ...item, ...updates } : item)
-  )
+ const addSharedMediaItem = (item: SharedMediaItem) => {
+  setSharedMediaItems(prev => [item, ...prev])
 }
 
-const updateSharedMediaUserRating = async (
-  sharedMediaId: string, 
-  userId: string, 
-  rating: number | null, 
-  reaction: string | null
-) => {
-  const supabase = createClient()
-  
-  const { error } = await supabase
-    .from("shared_media_user")
-    .upsert({
-      shared_media_id: sharedMediaId,
-      user_id: userId,
-      user_rating: rating,
-      reaction: reaction,
-      updated_at: new Date(),
-    }, { onConflict: "shared_media_id, user_id" })
-  
-  if (error) throw error
-  
-  // Обновляем локальное состояние
-  setSharedMediaItems(prev =>
-    prev.map(item => {
-      if (item.id !== sharedMediaId) return item
-      
-      const existingRatings = item.userRatings || []
-      const otherRatings = existingRatings.filter(r => r.user_id !== userId)
-      
-      return {
-        ...item,
-        userRatings: [
-          ...otherRatings,
-          { shared_media_id: sharedMediaId, user_id: userId, user_rating: rating, reaction }
-        ]
-      }
-    })
-  )
-}
+  const updateSharedMediaItem = async (id: string, updates: Partial<SharedMediaItem>) => {
+    const supabase = createClient()
+
+    const mapStatusToDb = (status?: string) => {
+      if (status === "will-watch") return "planned"
+      if (status === "watching") return "watching"
+      if (status === "watched") return "watched"
+      if (status === "dropped") return "dropped"
+      return "planned"
+    }
+
+    const { error } = await supabase
+      .from("shared_media")
+      .update({
+        status: mapStatusToDb(updates.status),
+        current_season: updates.currentSeason || null,
+        current_episode: updates.currentEpisode || null,
+        notes: updates.note || null,
+        updated_at: new Date(),
+      })
+      .eq("id", id)
+
+    if (error) throw error
+
+    setSharedMediaItems(prev =>
+      prev.map(item => item.id === id ? { ...item, ...updates } : item)
+    )
+  }
+
+  const updateSharedMediaUserRating = async (
+    sharedMediaId: string,
+    userId: string,
+    rating: number | null,
+    reaction: string | null
+  ) => {
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from("shared_media_user")
+      .upsert({
+        shared_media_id: sharedMediaId,
+        user_id: userId,
+        user_rating: rating,
+        reaction: reaction,
+        updated_at: new Date(),
+      }, { onConflict: "shared_media_id, user_id" })
+
+    if (error) throw error
+
+    // Обновляем локальное состояние
+    setSharedMediaItems(prev =>
+      prev.map(item => {
+        if (item.id !== sharedMediaId) return item
+
+        const existingRatings = item.userRatings || []
+        const otherRatings = existingRatings.filter(r => r.user_id !== userId)
+
+        return {
+          ...item,
+          userRatings: [
+            ...otherRatings,
+            { shared_media_id: sharedMediaId, user_id: userId, user_rating: rating, reaction }
+          ]
+        }
+      })
+    )
+  }
 
   const deleteSharedMediaItem = async (id: string) => {
     const supabase = createClient()
@@ -444,78 +443,78 @@ const updateSharedMediaUserRating = async (
     setSharedGameItems(prev => [newItem, ...prev])
   }
 
-const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
-  const supabase = createClient()
-  
-  const mapGameStatusToDb = (status?: string) => {
-    if (status === "planning") return "planned"
-    if (status === "playing") return "playing"
-    if (status === "completed") return "completed"
-    if (status === "dropped") return "dropped"
-    return "planned"
-  }
-  
-  const { error } = await supabase
-    .from("shared_games")
-    .update({
-      status: mapGameStatusToDb(updates.status),
-      platforms: updates.platforms || null,
-      notes: updates.note || null,
-      updated_at: new Date(),
-    })
-    .eq("id", id)
-  
-  if (error) {
-    console.error("Update shared game error:", error)
-    throw error
-  }
-  
-  setSharedGameItems(prev =>
-    prev.map(item => item.id === id ? { ...item, ...updates } : item)
-  )
-}
+  const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
+    const supabase = createClient()
 
-const updateSharedGameUserRating = async (
-  sharedGameId: string, 
-  userId: string, 
-  rating: number | null, 
-  reaction: string | null
-) => {
-  const supabase = createClient()
-  
-  const { error } = await supabase
-    .from("shared_games_user")
-    .upsert({
-      shared_game_id: sharedGameId,
-      user_id: userId,
-      user_rating: rating,
-      reaction: reaction,
-      updated_at: new Date(),
-    }, { onConflict: "shared_game_id, user_id" })
-  
-  if (error) {
-    console.error("Update game user rating error:", error)
-    throw error
+    const mapGameStatusToDb = (status?: string) => {
+      if (status === "planning") return "planned"
+      if (status === "playing") return "playing"
+      if (status === "completed") return "completed"
+      if (status === "dropped") return "dropped"
+      return "planned"
+    }
+
+    const { error } = await supabase
+      .from("shared_games")
+      .update({
+        status: mapGameStatusToDb(updates.status),
+        platforms: updates.platforms || null,
+        notes: updates.note || null,
+        updated_at: new Date(),
+      })
+      .eq("id", id)
+
+    if (error) {
+      console.error("Update shared game error:", error)
+      throw error
+    }
+
+    setSharedGameItems(prev =>
+      prev.map(item => item.id === id ? { ...item, ...updates } : item)
+    )
   }
-  
-  // Обновляем локальное состояние
-  setSharedGameItems(prev =>
-    prev.map(item => {
-      if (item.id !== sharedGameId) return item
-      
-      const existingRatings = item.userRatings || []
-      const otherRatings = existingRatings.filter(r => r.user_id !== userId)
-      
-      return {
-        ...item,
-        userRatings: [
-          ...otherRatings,
-          { shared_game_id: sharedGameId, user_id: userId, user_rating: rating, reaction }
-        ]
-      }
-    })
-  )
-}
+
+  const updateSharedGameUserRating = async (
+    sharedGameId: string,
+    userId: string,
+    rating: number | null,
+    reaction: string | null
+  ) => {
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from("shared_games_user")
+      .upsert({
+        shared_game_id: sharedGameId,
+        user_id: userId,
+        user_rating: rating,
+        reaction: reaction,
+        updated_at: new Date(),
+      }, { onConflict: "shared_game_id, user_id" })
+
+    if (error) {
+      console.error("Update game user rating error:", error)
+      throw error
+    }
+
+    // Обновляем локальное состояние
+    setSharedGameItems(prev =>
+      prev.map(item => {
+        if (item.id !== sharedGameId) return item
+
+        const existingRatings = item.userRatings || []
+        const otherRatings = existingRatings.filter(r => r.user_id !== userId)
+
+        return {
+          ...item,
+          userRatings: [
+            ...otherRatings,
+            { shared_game_id: sharedGameId, user_id: userId, user_rating: rating, reaction }
+          ]
+        }
+      })
+    )
+  }
 
   const deleteSharedGameItem = async (id: string) => {
     const supabase = createClient()
@@ -536,7 +535,7 @@ const updateSharedGameUserRating = async (
       priority: item.priority,
       is_gift_idea: item.category === "date-idea",
     }).select().single()
-    
+
     if (data) {
       setWishlistItems(prev => [{
         id: data.id, name: data.title, imageUrl: data.image_url,
@@ -557,7 +556,7 @@ const updateSharedGameUserRating = async (
       priority: updates.priority,
       reserved_by: updates.reservedBy,
     }).eq("id", id)
-    
+
     setWishlistItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
   }
 
@@ -575,7 +574,7 @@ const updateSharedGameUserRating = async (
       bio: updates.bio,
       favorite_genres: updates.favoriteGenres,
     }).eq("id", id)
-    
+
     setUsers(prev => prev.map(user => user.id === id ? { ...user, ...updates } : user))
   }
 
@@ -585,7 +584,7 @@ const updateSharedGameUserRating = async (
   const activeUser = users.find(u => u.id === activeUserId) || {
     id: USER_IDS.YOU, name: "Ты", avatar: "🦊", bio: "", favoriteGenres: []
   }
-  
+
   const partnerUser = users.find(u => u.id !== activeUserId) || {
     id: USER_IDS.PARTNER, name: "Партнёр", avatar: "🐻", bio: "", favoriteGenres: []
   }
@@ -601,8 +600,8 @@ const updateSharedGameUserRating = async (
         sharedMediaItems, addSharedMediaItem, updateSharedMediaItem, deleteSharedMediaItem,
         sharedGameItems, addSharedGameItem, updateSharedGameItem, deleteSharedGameItem,
         wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem,
-        updateUser,  updateSharedMediaUserRating,
-      updateSharedGameUserRating,
+        updateUser, updateSharedMediaUserRating,
+        updateSharedGameUserRating,
       }}
     >
       {children}

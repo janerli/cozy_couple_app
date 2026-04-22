@@ -211,42 +211,84 @@ function AddSharedMediaDialog() {
     setSearchResults([])
   }
 
-  const saveToSupabase = async () => {
+const saveToSupabase = async () => {
+  const supabase = createClient()
+  
+  // 1. Сохраняем контент
+  const { data: content, error: contentError } = await supabase
+    .from("content")
+    .upsert({
+      external_id: formData.externalId || Date.now().toString(),
+      content_type: formData.type,
+      title_ru: formData.title,
+      poster_url: formData.poster || defaultPosters[0],
+      description: formData.description || null,
+      updated_at: new Date(),
+    }, { onConflict: "external_id, content_type" })
+    .select()
+    .single()
+    
+  if (contentError) throw contentError
+
+  // 2. Сохраняем в shared_media и 🔥 ВОЗВРАЩАЕМ ID
+  const { data: shared, error: sharedError } = await supabase
+    .from("shared_media")
+    .insert({
+      content_id: content.id,
+      added_by: activeUserId,
+      status: "planned",
+      current_season: 1,
+      current_episode: 1,
+    })
+    .select()
+    .single()
+
+  if (sharedError) throw sharedError
+  
+  return shared  // ← возвращаем запись с НАСТОЯЩИМ ID
+}
+
+const handleSubmit = async () => {
+  if (!formData.title.trim()) return
+  
+  try {
+    const savedItem = await saveToSupabase()  // ← получаем запись из БД
+    
+    // 🔥 Загружаем связанный контент для отображения
     const supabase = createClient()
-    const { data: content, error: contentError } = await supabase
-      .from("content").upsert({
-        external_id: formData.externalId || Date.now().toString(),
-        content_type: formData.type,
-        title_ru: formData.title,
-        poster_url: formData.poster || defaultPosters[0],
-        description: formData.description || null,
-        updated_at: new Date(),
-      }, { onConflict: "external_id, content_type" }).select().single()
-    if (contentError) throw contentError
-
-    const { error: sharedError } = await supabase
-      .from("shared_media").insert({
-        content_id: content.id, added_by: activeUserId,
-        status: "planned", current_season: 1, current_episode: 1,
-      })
-    if (sharedError) throw sharedError
-    return content
-  }
-
-  const handleSubmit = async () => {
-    if (!formData.title.trim()) return
-    try {
-      await saveToSupabase()
+    const { data: fullItem } = await supabase
+      .from("shared_media")
+      .select(`
+        *,
+        content:content_id (title_ru, title_en, poster_url, description, content_type)
+      `)
+      .eq("id", savedItem.id)
+      .single()
+    
+    if (fullItem) {
+      // 🔥 Добавляем с НАСТОЯЩИМ ID
       addSharedMediaItem({
-        title: formData.title, poster: formData.poster || defaultPosters[0],
-        description: formData.description || undefined, type: formData.type,
-        status: "will-watch", addedByUserId: activeUserId,
+        id: fullItem.id,  // ← UUID из Supabase
+        title: fullItem.content?.title_ru || formData.title,
+        poster: fullItem.content?.poster_url || formData.poster || defaultPosters[0],
+        description: fullItem.content?.description || formData.description || undefined,
+        type: fullItem.content?.content_type as SharedMediaItem["type"] || formData.type,
+        status: "will-watch",
+        addedByUserId: activeUserId,
+        addedAt: new Date(fullItem.added_at),
+        currentSeason: fullItem.current_season || 1,
+        currentEpisode: fullItem.current_episode || 1,
+        note: fullItem.notes || undefined,
       })
-      setFormData({ title: "", poster: "", description: "", type: "movie", externalId: "" })
-      setSearchInput("")
-      setOpen(false)
-    } catch { alert("Ошибка при сохранении") }
+    }
+    
+    setFormData({ title: "", poster: "", description: "", type: "movie", externalId: "" })
+    setSearchInput("")
+    setOpen(false)
+  } catch {
+    alert("Ошибка при сохранении")
   }
+}
 
   const getYear = (item: SearchResult) => searchSource === "kinopoisk"
     ? (item as KinopoiskMovie).year?.toString() || ""
@@ -345,9 +387,9 @@ function AddSharedMediaDialog() {
 // ===================
 // SHARED MEDIA CARD
 // ===================
-
 function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number }) {
-  const { users, activeUserId, partnerUser, updateSharedMediaItem, deleteSharedMediaItem, updateSharedMediaUserRating } = useApp()
+  const { users, activeUserId, activeUser, partnerUser, updateSharedMediaItem, deleteSharedMediaItem, updateSharedMediaUserRating } = useApp()
+  const [isViewing, setIsViewing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({
     title: item.title, description: item.description || "", status: item.status,
@@ -386,52 +428,256 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
 
   return (
     <>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} layout>
-        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
-          <div className="relative aspect-[2/3]">
-            <img src={item.poster} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
-              <div className="absolute bottom-0 left-0 right-0 p-4">
-                {item.description && <p className="text-white/80 text-xs mb-3 line-clamp-3">{item.description}</p>}
-                {item.note && <p className="text-white/60 text-xs mb-3 italic flex items-center gap-1"><MessageCircle className="w-3 h-3" />{item.note}</p>}
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" className="rounded-full flex-1" onClick={() => setIsEditing(true)}><Edit2 className="w-4 h-4" /></Button>
-                  <Button size="sm" variant="destructive" className="rounded-full" onClick={() => deleteSharedMediaItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
+<motion.div 
+  initial={{ opacity: 0, y: 20 }} 
+  animate={{ opacity: 1, y: 0 }} 
+  transition={{ delay: index * 0.05 }} 
+  layout
+>
+  <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
+    <div className="relative aspect-[2/3] bg-muted" onClick={() => setIsViewing(true)}>
+      {/* Картинка с увеличением */}
+      <img 
+        src={item.poster} 
+        alt={item.title} 
+        className="absolute inset-0 w-full h-full object-cover" 
+      />
+      
+      {/* 🔥 Затемнение — отдельный слой, не масштабируется */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      </div>
+      
+      {/* 🔥 Контент оверлея — текст и кнопки */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          {/* Текст с ограничением по высоте */}
+          <div className="max-h-24 overflow-hidden mb-3">
+            {item.description && (
+              <p className="text-white/90 text-xs line-clamp-2">{item.description}</p>
+            )}
+            {item.note && (
+              <p className="text-white/80 text-xs italic flex items-center gap-1 mt-1">
+                <MessageCircle className="w-3 h-3 flex-shrink-0" />
+                <span className="line-clamp-1">{item.note}</span>
+              </p>
+            )}
+          </div>
+          
+          {/* Кнопки */}
+          <div 
+            className="flex gap-2" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button 
+              size="sm" 
+              variant="secondary" 
+              className="rounded-full flex-1 h-9"
+              onClick={() => setIsEditing(true)}
+            >
+              <Edit2 className="w-4 h-4 mr-1" /> Ред.
+            </Button>
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              className="rounded-full h-9 w-9 p-0"
+              onClick={() => deleteSharedMediaItem(item.id)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Статус */}
+      <div className="absolute top-2 left-2 z-10">
+        <span className={cn("px-2 py-1 text-xs font-medium rounded-full shadow-lg", mediaStatusColors[item.status])}>
+          {mediaStatusLabels[item.status]}
+        </span>
+      </div>
+      
+      {/* Реакция */}
+      {myRating?.reaction && (
+        <div className="absolute top-2 right-2 z-10">
+          <span className="w-8 h-8 bg-background/80 backdrop-blur rounded-full flex items-center justify-center text-lg shadow-lg">
+            {myRating.reaction}
+          </span>
+        </div>
+      )}
+      
+      {/* Тип */}
+      <div className="absolute bottom-2 left-2 right-2 z-10 opacity-100 group-hover:opacity-0 transition-opacity">
+        <span className="px-2 py-1 text-xs bg-black/60 backdrop-blur-sm text-white rounded-full">
+          {typeLabels[item.type]}
+        </span>
+      </div>
+    </div>
+    
+    {/* Информация под постером */}
+    <div className="p-3">
+      <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
+        <span className="truncate">{addedByUser?.name}</span>
+      </div>
+      <div className="flex justify-between items-center mt-2 text-xs">
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground">Ты:</span>
+          {myRating?.user_rating ? (
+            <div className="flex items-center">
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+              <span>{myRating.user_rating}</span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground/50">—</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground">{partnerUser?.name}:</span>
+          {partnerRating?.user_rating ? (
+            <div className="flex items-center">
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+              <span>{partnerRating.user_rating}</span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground/50">—</span>
+          )}
+        </div>
+        {progressText && <span className="text-muted-foreground truncate">{progressText}</span>}
+      </div>
+    </div>
+  </Card>
+</motion.div>
+      {/* ПРОСМОТР */}
+<Dialog open={isViewing} onOpenChange={setIsViewing}>
+  <DialogContent className="!max-w-4xl !w-[90vw] rounded-2xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="text-xl font-bold">{item.title}</DialogTitle>
+    </DialogHeader>
+    
+    <div className="flex flex-col md:flex-row gap-6 py-4">
+      <div className="md:w-2/5 flex-shrink-0">
+        <img 
+          src={item.poster} 
+          alt={item.title} 
+          className="w-full rounded-xl shadow-lg object-cover" 
+        />
+      </div>
+      
+      <div className="md:w-3/5 space-y-5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn("px-3 py-1 text-sm font-medium rounded-full", mediaStatusColors[item.status])}>
+            {mediaStatusLabels[item.status]}
+          </span>
+          <span className="px-3 py-1 text-sm bg-muted rounded-full">
+            {typeLabels[item.type]}
+          </span>
+          {progressText && (
+            <span className="px-3 py-1 text-sm bg-muted rounded-full">{progressText}</span>
+          )}
+        </div>
+        
+        <div>
+          <h3 className="font-semibold text-lg mb-2">Описание</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {item.description || "Нет описания"}
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4 pt-2">
+          <div className="bg-muted/50 p-4 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <UserAvatar avatar={activeUser?.avatar || ''} name={activeUser?.name || ''} size="md" />
+              <span className="font-medium">Ты</span>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs text-muted-foreground">Оценка</span>
+                <div className="flex items-center gap-1 mt-1">
+                  {myRating?.user_rating ? (
+                    <>
+                      <span className="text-2xl font-bold text-amber-500">{myRating.user_rating}</span>
+                      <span className="text-sm text-muted-foreground">/10</span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Реакция</span>
+                <div className="mt-1">
+                  {myRating?.reaction ? (
+                    <span className="text-4xl">{myRating.reaction}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="absolute top-2 left-2">
-              <span className={cn("px-2 py-1 text-xs font-medium rounded-full", mediaStatusColors[item.status])}>{mediaStatusLabels[item.status]}</span>
+          </div>
+          
+          <div className="bg-muted/50 p-4 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <UserAvatar avatar={partnerUser?.avatar || ''} name={partnerUser?.name || ''} size="md" />
+              <span className="font-medium">{partnerUser?.name}</span>
             </div>
-            {myRating?.reaction && (
-              <div className="absolute top-2 right-2">
-                <span className="w-8 h-8 bg-background/80 backdrop-blur rounded-full flex items-center justify-center text-lg">{myRating.reaction}</span>
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs text-muted-foreground">Оценка</span>
+                <div className="flex items-center gap-1 mt-1">
+                  {partnerRating?.user_rating ? (
+                    <>
+                      <span className="text-2xl font-bold text-amber-500">{partnerRating.user_rating}</span>
+                      <span className="text-sm text-muted-foreground">/10</span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </div>
               </div>
-            )}
-            <div className="absolute bottom-2 left-2 right-2 opacity-100 group-hover:opacity-0 transition-opacity">
-              <span className="px-2 py-1 text-xs bg-black/60 text-white rounded-full">{typeLabels[item.type]}</span>
+              <div>
+                <span className="text-xs text-muted-foreground">Реакция</span>
+                <div className="mt-1">
+                  {partnerRating?.reaction ? (
+                    <span className="text-4xl">{partnerRating.reaction}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="p-3">
-            <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
-              <span className="truncate">{addedByUser?.name}</span>
-            </div>
-            <div className="flex justify-between items-center mt-2 text-xs">
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Ты:</span>
-                {myRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{myRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">{partnerUser?.name}:</span>
-                {partnerRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{partnerRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}
-              </div>
-              {progressText && <span className="text-muted-foreground truncate">{progressText}</span>}
+        </div>
+        
+        {item.note && (
+          <div>
+            <h3 className="font-semibold text-base mb-2">Заметка</h3>
+            <div className="bg-muted/30 p-4 rounded-xl">
+              <p className="text-muted-foreground text-sm italic">"{item.note}"</p>
             </div>
           </div>
-        </Card>
-      </motion.div>
+        )}
+        
+        <div className="flex items-center gap-2 pt-4 border-t text-sm text-muted-foreground">
+          <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
+          <span>Добавил(а): <span className="font-medium text-foreground">{addedByUser?.name}</span></span>
+          <span className="ml-auto">{new Date(item.addedAt).toLocaleDateString('ru-RU')}</span>
+        </div>
+      </div>
+    </div>
+    
+    <DialogFooter className="gap-2">
+      <Button variant="outline" onClick={() => setIsViewing(false)} className="rounded-full px-6 py-5">
+        Закрыть
+      </Button>
+      <Button onClick={() => { setIsViewing(false); setIsEditing(true) }} className="rounded-full px-6 py-5">
+        <Edit2 className="w-4 h-4 mr-1" /> Редактировать
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+      {/* РЕДАКТИРОВАНИЕ */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Редактировать</DialogTitle></DialogHeader>
@@ -443,8 +689,10 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
               <Select value={editData.status} onValueChange={(v: SharedMediaItem["status"]) => setEditData({ ...editData, status: v })}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="will-watch">Будем смотреть</SelectItem><SelectItem value="watching">Смотрим</SelectItem>
-                  <SelectItem value="watched">Посмотрели</SelectItem><SelectItem value="dropped">Бросили</SelectItem>
+                  <SelectItem value="will-watch">Будем смотреть</SelectItem>
+                  <SelectItem value="watching">Смотрим</SelectItem>
+                  <SelectItem value="watched">Посмотрели</SelectItem>
+                  <SelectItem value="dropped">Бросили</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -485,7 +733,6 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
     </>
   )
 }
-
 // ===================
 // GAMES SECTION (оставляю компактно, но с кнопкой поиска)
 // ===================
@@ -650,17 +897,21 @@ function AddGameDialog() {
 }
 
 function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }) {
-  const { users, activeUserId, partnerUser, updateSharedGameItem, deleteSharedGameItem, updateSharedGameUserRating } = useApp()
+  const { users, activeUserId, activeUser, partnerUser, updateSharedGameItem, deleteSharedGameItem, updateSharedGameUserRating } = useApp()
+  const [isViewing, setIsViewing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({
     title: item.title, description: item.description || "", status: item.status, platforms: item.platforms, note: item.note || "",
   })
   const [userRating, setUserRating] = useState(0)
+  
   const addedByUser = users.find((u) => u.id === item.addedByUserId)
   const myRating = item.userRatings?.find(r => r.user_id === activeUserId)
   const partnerRating = item.userRatings?.find(r => r.user_id === partnerUser?.id)
 
-  useEffect(() => { if (isEditing) setUserRating(myRating?.user_rating || 0) }, [isEditing, myRating])
+  useEffect(() => { 
+    if (isEditing) setUserRating(myRating?.user_rating || 0) 
+  }, [isEditing, myRating])
 
   const handleSave = async () => {
     await updateSharedGameItem(item.id, {
@@ -673,28 +924,70 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
 
   return (
     <>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} layout>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ delay: index * 0.05 }} 
+        layout
+      >
         <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
-          <div className="relative aspect-[3/4]">
-            <img src={item.cover} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
-              <div className="absolute bottom-0 left-0 right-0 p-4">
-                {item.description && <p className="text-white/80 text-xs mb-3 line-clamp-3">{item.description}</p>}
-                {item.note && <p className="text-white/60 text-xs mb-3 italic">{item.note}</p>}
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" className="rounded-full flex-1" onClick={() => setIsEditing(true)}><Edit2 className="w-4 h-4" /></Button>
-                  <Button size="sm" variant="destructive" className="rounded-full" onClick={() => deleteSharedGameItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
+          <div className="relative aspect-[3/4] bg-muted" onClick={() => setIsViewing(true)}>
+            <img 
+              src={item.cover} 
+              alt={item.title} 
+              className="absolute inset-0 w-full h-full object-cover" 
+            />
+            
+            {/* Затемнение */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </div>
+            
+            {/* Контент оверлея */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="max-h-24 overflow-hidden mb-3">
+                  {item.description && (
+                    <p className="text-white/90 text-xs line-clamp-2">{item.description}</p>
+                  )}
+                  {item.note && (
+                    <p className="text-white/80 text-xs italic mt-1 line-clamp-1">{item.note}</p>
+                  )}
+                </div>
+                
+                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="secondary" className="rounded-full flex-1 h-9" onClick={() => setIsEditing(true)}>
+                    <Edit2 className="w-4 h-4 mr-1" /> Ред.
+                  </Button>
+                  <Button size="sm" variant="destructive" className="rounded-full h-9 w-9 p-0" onClick={() => deleteSharedGameItem(item.id)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </div>
-            <div className="absolute top-2 left-2">
-              <span className={cn("px-2 py-1 text-xs font-medium rounded-full", gameStatusColors[item.status])}>{gameStatusLabels[item.status]}</span>
+            
+            {/* Статус */}
+            <div className="absolute top-2 left-2 z-10">
+              <span className={cn("px-2 py-1 text-xs font-medium rounded-full shadow-lg", gameStatusColors[item.status])}>
+                {gameStatusLabels[item.status]}
+              </span>
             </div>
-            <div className="absolute bottom-2 left-2 right-2 flex gap-1 flex-wrap opacity-100 group-hover:opacity-0 transition-opacity">
-              {item.platforms.slice(0, 2).map((p) => <span key={p} className="px-2 py-0.5 text-xs bg-black/60 text-white rounded-full">{platformLabels[p]}</span>)}
-              {item.platforms.length > 2 && <span className="px-2 py-0.5 text-xs bg-black/60 text-white rounded-full">+{item.platforms.length - 2}</span>}
+            
+            {/* Платформы */}
+            <div className="absolute bottom-2 left-2 right-2 z-10 flex gap-1 flex-wrap opacity-100 group-hover:opacity-0 transition-opacity">
+              {item.platforms.slice(0, 2).map((p) => (
+                <span key={p} className="px-2 py-0.5 text-xs bg-black/60 backdrop-blur-sm text-white rounded-full">
+                  {platformLabels[p]}
+                </span>
+              ))}
+              {item.platforms.length > 2 && (
+                <span className="px-2 py-0.5 text-xs bg-black/60 backdrop-blur-sm text-white rounded-full">
+                  +{item.platforms.length - 2}
+                </span>
+              )}
             </div>
           </div>
+          
           <div className="p-3">
             <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -702,12 +995,123 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
               <span className="truncate">{addedByUser?.name}</span>
             </div>
             <div className="flex justify-between items-center mt-2 text-xs">
-              <div className="flex items-center gap-1"><span className="text-muted-foreground">Ты:</span>{myRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{myRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}</div>
-              <div className="flex items-center gap-1"><span className="text-muted-foreground">{partnerUser?.name}:</span>{partnerRating?.user_rating ? <div className="flex items-center"><Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" /><span>{partnerRating.user_rating}</span></div> : <span className="text-muted-foreground/50">—</span>}</div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Ты:</span>
+                {myRating?.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+                    <span>{myRating.user_rating}</span>
+                  </div>
+                ) : <span className="text-muted-foreground/50">—</span>}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">{partnerUser?.name}:</span>
+                {partnerRating?.user_rating ? (
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+                    <span>{partnerRating.user_rating}</span>
+                  </div>
+                ) : <span className="text-muted-foreground/50">—</span>}
+              </div>
             </div>
           </div>
         </Card>
       </motion.div>
+
+      {/* 🔥 ПРОСМОТР */}
+      <Dialog open={isViewing} onOpenChange={setIsViewing}>
+        <DialogContent className="!max-w-4xl !w-[90vw] rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">{item.title}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex flex-col md:flex-row gap-6 py-4">
+            <div className="md:w-2/5 flex-shrink-0">
+              <img src={item.cover} alt={item.title} className="w-full rounded-xl shadow-lg object-cover" />
+            </div>
+            
+            <div className="md:w-3/5 space-y-5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={cn("px-3 py-1 text-sm font-medium rounded-full", gameStatusColors[item.status])}>
+                  {gameStatusLabels[item.status]}
+                </span>
+                {item.platforms.map((p) => (
+                  <span key={p} className="px-3 py-1 text-sm bg-muted rounded-full">{platformLabels[p]}</span>
+                ))}
+              </div>
+              
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Описание</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {item.description || "Нет описания"}
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="bg-muted/50 p-4 rounded-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <UserAvatar avatar={activeUser?.avatar || ''} name={activeUser?.name || ''} size="md" />
+                    <span className="font-medium">Ты</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Оценка</span>
+                    <div className="flex items-center gap-1 mt-1">
+                      {myRating?.user_rating ? (
+                        <>
+                          <span className="text-2xl font-bold text-amber-500">{myRating.user_rating}</span>
+                          <span className="text-sm text-muted-foreground">/10</span>
+                        </>
+                      ) : <span className="text-sm text-muted-foreground">—</span>}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-muted/50 p-4 rounded-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <UserAvatar avatar={partnerUser?.avatar || ''} name={partnerUser?.name || ''} size="md" />
+                    <span className="font-medium">{partnerUser?.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Оценка</span>
+                    <div className="flex items-center gap-1 mt-1">
+                      {partnerRating?.user_rating ? (
+                        <>
+                          <span className="text-2xl font-bold text-amber-500">{partnerRating.user_rating}</span>
+                          <span className="text-sm text-muted-foreground">/10</span>
+                        </>
+                      ) : <span className="text-sm text-muted-foreground">—</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {item.note && (
+                <div>
+                  <h3 className="font-semibold text-base mb-2">Заметка</h3>
+                  <div className="bg-muted/30 p-4 rounded-xl">
+                    <p className="text-muted-foreground text-sm italic">"{item.note}"</p>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 pt-4 border-t text-sm text-muted-foreground">
+                <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
+                <span>Добавил(а): <span className="font-medium text-foreground">{addedByUser?.name}</span></span>
+                <span className="ml-auto">{new Date(item.addedAt).toLocaleDateString('ru-RU')}</span>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsViewing(false)} className="rounded-full px-6 py-5">Закрыть</Button>
+            <Button onClick={() => { setIsViewing(false); setIsEditing(true) }} className="rounded-full px-6 py-5">
+              <Edit2 className="w-4 h-4 mr-1" /> Редактировать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🔥 РЕДАКТИРОВАНИЕ */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Редактировать игру</DialogTitle></DialogHeader>
@@ -719,22 +1123,56 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
               <Select value={editData.status} onValueChange={(v: SharedGameItem["status"]) => setEditData({ ...editData, status: v })}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="planning">Планируем</SelectItem><SelectItem value="playing">Играем</SelectItem>
-                  <SelectItem value="completed">Прошли</SelectItem><SelectItem value="dropped">Бросили</SelectItem>
+                  <SelectItem value="planning">Планируем</SelectItem>
+                  <SelectItem value="playing">Играем</SelectItem>
+                  <SelectItem value="completed">Прошли</SelectItem>
+                  <SelectItem value="dropped">Бросили</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>Платформы</Label><div className="flex flex-wrap gap-2">{Object.keys(platformLabels).map((p) => <button key={p} onClick={() => setEditData(prev => ({ ...prev, platforms: prev.platforms.includes(p as GamePlatform) ? prev.platforms.filter(x => x !== p) : [...prev.platforms, p as GamePlatform] }))} className={cn("px-3 py-1.5 rounded-full text-sm", editData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted")}>{platformLabels[p as GamePlatform]}</button>)}</div></div>
-            <div className="space-y-2"><Label>Твоя оценка</Label><div className="flex gap-0.5">{Array.from({ length: 10 }).map((_, i) => <button key={i} onClick={() => setUserRating(i + 1)}><Star className={cn("w-5 h-5", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} /></button>)}{userRating > 0 && <button onClick={() => setUserRating(0)}><X className="w-4 h-4" /></button>}</div></div>
+            <div className="space-y-2">
+              <Label>Платформы</Label>
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(platformLabels).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setEditData(prev => ({ 
+                      ...prev, 
+                      platforms: prev.platforms.includes(p as GamePlatform) 
+                        ? prev.platforms.filter(x => x !== p) 
+                        : [...prev.platforms, p as GamePlatform] 
+                    }))}
+                    className={cn("px-3 py-1.5 rounded-full text-sm", 
+                      editData.platforms.includes(p as GamePlatform) ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}
+                  >
+                    {platformLabels[p as GamePlatform]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Твоя оценка</Label>
+              <div className="flex gap-0.5">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <button key={i} onClick={() => setUserRating(i + 1)}>
+                    <Star className={cn("w-5 h-5", i < userRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground")} />
+                  </button>
+                ))}
+                {userRating > 0 && <button onClick={() => setUserRating(0)}><X className="w-4 h-4" /></button>}
+              </div>
+            </div>
             <div className="space-y-2"><Label>Заметка</Label><Textarea value={editData.note} onChange={(e) => setEditData({ ...editData, note: e.target.value })} className="rounded-xl resize-none" rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setIsEditing(false)}>Отмена</Button><Button onClick={handleSave}>Сохранить</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditing(false)} className="rounded-full">Отмена</Button>
+            <Button onClick={handleSave} className="rounded-full">Сохранить</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   )
 }
-
 // ===================
 // MAIN PAGE
 // ===================
@@ -748,6 +1186,7 @@ export default function SharedPage() {
   const [gameTab, setGameTab] = useState<GameTab>("planning")
   const [filterPlatform, setFilterPlatform] = useState<FilterPlatform>("all")
   const [gameSortBy, setGameSortBy] = useState<SortBy>("date")
+  const [mediaSearchQuery, setMediaSearchQuery] = useState("")
 
   const mediaStats = useMemo(() => ({
     "will-watch": sharedMediaItems.filter(m => m.status === "will-watch").length,
@@ -763,12 +1202,34 @@ export default function SharedPage() {
     dropped: sharedGameItems.filter(g => g.status === "dropped").length,
   }), [sharedGameItems])
 
-  const filteredMedia = useMemo(() => {
-    let items = sharedMediaItems.filter(m => m.status === mediaTab)
-    if (filterType !== "all") items = items.filter(m => m.type === filterType)
-    items.sort((a, b) => mediaSortBy === "date" ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() : mediaSortBy === "rating" ? ((b.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0) - (a.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0)) : a.title.localeCompare(b.title))
-    return items
-  }, [sharedMediaItems, mediaTab, filterType, mediaSortBy, users])
+const filteredMedia = useMemo(() => {
+  let items = sharedMediaItems.filter(m => m.status === mediaTab)
+  
+  // Фильтр по типу
+  if (filterType !== "all") {
+    items = items.filter(m => m.type === filterType)
+  }
+  
+  // 🔥 ПОИСК — ДОБАВЬ ЭТОТ БЛОК
+  if (mediaSearchQuery.trim()) {
+    const query = mediaSearchQuery.toLowerCase()
+    items = items.filter(m => 
+      m.title.toLowerCase().includes(query) || 
+      m.description?.toLowerCase().includes(query)
+    )
+  }
+  
+  // Сортировка
+  items.sort((a, b) => 
+    mediaSortBy === "date" 
+      ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() 
+      : mediaSortBy === "rating" 
+        ? ((b.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0) - (a.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0)) 
+        : a.title.localeCompare(b.title)
+  )
+  return items
+}, [sharedMediaItems, mediaTab, filterType, mediaSearchQuery, mediaSortBy, users])
+// ↑ добавь mediaSearchQuery в зависимости
 
   const filteredGames = useMemo(() => {
     let items = sharedGameItems.filter(g => g.status === gameTab)
@@ -809,6 +1270,24 @@ export default function SharedPage() {
               {mediaTabs.map(t => <button key={t.value} onClick={() => setMediaTab(t.value)} className={cn("flex items-center gap-2 px-4 py-2 rounded-full font-medium", mediaTab === t.value ? "bg-primary text-primary-foreground" : "bg-muted")}><t.icon className="w-4 h-4" />{t.label}<span className="ml-1 text-xs">({mediaStats[t.value]})</span></button>)}
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {/* 🔥 ПОЛЕ ПОИСКА */}
+  <div className="relative w-full sm:w-56">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+    <Input
+      value={mediaSearchQuery}
+      onChange={(e) => setMediaSearchQuery(e.target.value)}
+      placeholder="Поиск..."
+      className="rounded-full pl-10 pr-4"
+    />
+    {mediaSearchQuery && (
+      <button
+        onClick={() => setMediaSearchQuery("")}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    )}
+  </div>
               <div className="flex gap-2 overflow-x-auto flex-1 pb-2">{filterOptions.map(o => <button key={o.value} onClick={() => setFilterType(o.value)} className={cn("px-3 py-1.5 rounded-full text-sm", filterType === o.value ? "bg-accent" : "bg-muted/50")}>{o.label}</button>)}</div>
               <Select value={mediaSortBy} onValueChange={(v: SortBy) => setMediaSortBy(v)}><SelectTrigger className="w-40 rounded-full"><ArrowUpDown className="w-4 h-4 mr-2" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="date">По дате</SelectItem><SelectItem value="rating">По рейтингу</SelectItem><SelectItem value="title">По названию</SelectItem></SelectContent></Select>
               <AddSharedMediaDialog />

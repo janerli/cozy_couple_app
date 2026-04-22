@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useApp, SharedMediaItem, SharedGameItem } from "@/lib/app-context"
 import Link from "next/link"
+import { DaysCounter } from "@/components/days-counter"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -73,7 +74,7 @@ export default function HomePage() {
 
   const isPartner = activeUser.id === USER_IDS.PARTNER  // 22222222-2222-2222-2222-222222222222
   const isYou = activeUser.id === USER_IDS.YOU          // 11111111-1111-1111-1111-111111111111
-  
+
   // 🔥 Список комплиментов для партнёра
   const compliments = [
     "я тебя люблю",
@@ -86,10 +87,10 @@ export default function HomePage() {
     "ты лучше всех",
     "желаю тебе хорошего дня"
   ]
-  
+
   const [compliment, setCompliment] = useState(compliments[0])
   const [activity, setActivity] = useState("посмотреть что-то уютное")
-  
+
   // 🔥 Устанавливаем случайные значения только на клиенте
   useEffect(() => {
     // Для партнёра - случайный комплимент
@@ -97,7 +98,7 @@ export default function HomePage() {
       const randomIndex = Math.floor(Math.random() * compliments.length)
       setCompliment(compliments[randomIndex])
     }
-    
+
     // Для тебя - случайная активность
     if (isYou) {
       const activities = [
@@ -176,40 +177,40 @@ export default function HomePage() {
     >
       {/* Greeting Section */}
       <motion.section variants={itemVariants} className="text-center py-8">
-  <motion.div
-    initial={{ scale: 0 }}
-    animate={{ scale: 1 }}
-    transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
-    className="inline-block mb-4"
-  >
-    <UserAvatar avatar={activeUser.avatar} name={activeUser.name} size="xl" />
-  </motion.div>
-  
-  {isPartner ? (
-  // 🔥 Приветствие для партнёра
-  <>
-    <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-      Привет, котёнок! 
-    </h1>
-    <p className="text-muted-foreground text-lg">
-      Интересный факт:{" "}
-      <span className="text-primary font-medium">{compliment}</span>
-      {" "}❤️
-    </p>
-  </>
-) : (
-  // 🔥 Приветствие для тебя
-  <>
-    <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-      Привет, {activeUser.name}!
-    </h1>
-    <p className="text-muted-foreground text-lg">
-      Сегодня такой уютный день для...{" "}
-      <span className="text-primary font-medium">{activity}</span>
-    </p>
-  </>
-)}
-</motion.section>
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
+          className="inline-block mb-4"
+        >
+          <UserAvatar avatar={activeUser.avatar} name={activeUser.name} size="xl" />
+        </motion.div>
+
+        {isPartner ? (
+          // 🔥 Приветствие для партнёра
+          <>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+              Привет, котёнок!
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              Интересный факт:{" "}
+              <span className="text-primary font-medium">{compliment}</span>
+              {" "}❤️
+            </p>
+          </>
+        ) : (
+          // 🔥 Приветствие для тебя
+          <>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+              Привет, {activeUser.name}!
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              Сегодня такой уютный день для...{" "}
+              <span className="text-primary font-medium">{activity}</span>
+            </p>
+          </>
+        )}
+      </motion.section>
 
       {/* Random Pickers Row */}
       <div className="grid md:grid-cols-2 gap-6">
@@ -480,6 +481,12 @@ export default function HomePage() {
                 {recentSharedActivity.map((item, index) => {
                   const addedBy = getUserById(item.addedByUserId)
                   const isGame = item.itemType === "game"
+
+                  // 🔥 Получаем оценку и реакцию текущего пользователя
+                  const myRating = isGame
+                    ? (item as SharedGameItem).userRatings?.find(r => r.user_id === activeUser.id)
+                    : (item as SharedMediaItem).userRatings?.find(r => r.user_id === activeUser.id)
+
                   return (
                     <motion.div
                       key={item.id}
@@ -488,14 +495,18 @@ export default function HomePage() {
                       transition={{ delay: index * 0.1 }}
                       className="flex items-center gap-4 p-2 rounded-xl hover:bg-muted/50 transition-colors"
                     >
+                      {/* Постер / Обложка */}
                       <img
                         src={isGame ? (item as SharedGameItem).cover : (item as SharedMediaItem).poster}
                         alt={item.title}
-                        className="w-12 h-16 object-cover rounded-lg"
+                        className="w-12 h-16 object-cover rounded-lg flex-shrink-0"
                       />
+
+                      {/* Информация */}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{item.title}</p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          {/* Статус */}
                           <span className="flex items-center gap-1">
                             {isGame ? (
                               <>
@@ -526,19 +537,26 @@ export default function HomePage() {
                               </>
                             )}
                           </span>
-                          <span className="text-xs">
-                            {addedBy?.avatar} {addedBy?.name}
+
+                          {/* Кто добавил */}
+                          <span className="flex items-center gap-1 text-xs">
+                            <UserAvatar avatar={addedBy?.avatar || ''} name={addedBy?.name || ''} size="sm" />
+                            <span>{addedBy?.name}</span>
                           </span>
                         </div>
                       </div>
-                      {item.rating && (
-                        <div className="flex items-center gap-0.5">
+
+                      {/* 🔥 Оценка текущего пользователя */}
+                      {myRating?.user_rating && (
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                           <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                          <span className="text-sm font-medium">{item.rating}</span>
+                          <span className="text-sm font-medium">{myRating.user_rating}</span>
                         </div>
                       )}
-                      {!isGame && (item as SharedMediaItem).reaction && (
-                        <span className="text-lg">{(item as SharedMediaItem).reaction}</span>
+
+                      {/* 🔥 Реакция текущего пользователя (только для медиа) */}
+                      {!isGame && myRating?.reaction && (
+                        <span className="text-lg flex-shrink-0">{myRating.reaction}</span>
                       )}
                     </motion.div>
                   )
@@ -555,20 +573,10 @@ export default function HomePage() {
 
       {/* Partner Activity */}
       <motion.section variants={itemVariants}>
-  <div className="flex items-center gap-3 mb-4">
-    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
-      {partnerUser.avatar?.startsWith('http') ? (
-        <img 
-          src={partnerUser.avatar} 
-          alt={partnerUser.name}
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <span className="text-xl">{partnerUser.avatar || partnerUser.name?.charAt(0) || '👤'}</span>
-      )}
-    </div>
-    <h2 className="text-xl font-bold">Личная активность {partnerUser.name}</h2>
-  </div>
+        <div className="flex items-center gap-3 mb-4">
+          <UserAvatar avatar={partnerUser.avatar} name={partnerUser.name} size="md" />
+          <h2 className="text-xl font-bold">Личная активность {partnerUser.name}</h2>
+        </div>
         <Card className="soft-shadow">
           <CardContent className="p-4">
             {partnerActivity.length > 0 ? (
@@ -584,7 +592,7 @@ export default function HomePage() {
                     <img
                       src={item.poster}
                       alt={item.title}
-                      className="w-12 h-16 object-cover rounded-lg"
+                      className="w-12 h-16 object-cover rounded-lg flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{item.title}</p>
@@ -615,7 +623,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     {item.rating && (
-                      <div className="flex items-center gap-0.5">
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
                         <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
                         <span className="text-sm font-medium">{item.rating}</span>
                       </div>

@@ -7,7 +7,7 @@ import { Moon, Sparkles, Home, Library, Gift, Settings, ListVideo, Gamepad2 } fr
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { useApp } from "@/lib/app-context"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/user-avatar"
 
 const navItems = [
   { href: "/", label: "Главная", icon: Home },
@@ -93,10 +93,7 @@ export function Header() {
                     : ""
                 )}
               >
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                </Avatar>
+                <UserAvatar avatar={user.avatar} name={user.name} size="lg" />
               </motion.button>
             ))}
           </div>
