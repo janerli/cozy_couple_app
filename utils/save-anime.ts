@@ -2,26 +2,26 @@
 import { createClient } from '@/lib/supabase/client'
 
 interface ShikimoriAnime {
-  id: number
+  id: string  // ← GraphQL возвращает строку
   name: string
   russian: string
-  url: string
   kind: 'tv' | 'movie' | 'ova' | 'ona' | 'special'
-  score: string
-  status: string
-  episodes: number
-  episodes_aired: number
-  aired_on: string
-  released_on: string
+  airedOn?: { year: number }  // ← GraphQL формат
   poster?: { 
     originalUrl: string
     mainUrl: string 
   }
   description?: string
   genres?: { name: string; russian: string }[]
+  score?: number
+  episodes?: number
 }
 
-export async function saveAnimeToDatabase(animeData: ShikimoriAnime, userId: string, listType: 'personal' | 'shared' = 'personal') {
+export async function saveAnimeToDatabase(
+  animeData: ShikimoriAnime, 
+  userId: string, 
+  listType: 'personal' | 'shared' = 'personal'
+) {
   const supabase = createClient()
   
   // Определяем тип контента: аниме-сериал или аниме-фильм
@@ -35,9 +35,9 @@ export async function saveAnimeToDatabase(animeData: ShikimoriAnime, userId: str
       content_type: contentType,
       title_ru: animeData.russian || animeData.name,
       title_en: animeData.name,
-      poster_url: animeData.poster?.originalUrl || `https://shikimori.io${animeData.url}`,
+      poster_url: animeData.poster?.originalUrl || animeData.poster?.mainUrl || '',
       description: animeData.description || null,
-      year: animeData.aired_on ? new Date(animeData.aired_on).getFullYear() : null,
+      year: animeData.airedOn?.year || null,  // ← GraphQL формат
       genres: animeData.genres?.map(g => g.russian || g.name) || [],
       updated_at: new Date(),
     }, { onConflict: 'external_id, content_type' })

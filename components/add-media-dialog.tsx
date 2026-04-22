@@ -51,12 +51,15 @@ interface KinopoiskMovie {
 }
 
 interface ShikimoriAnime {
-  id: number
+  id: string  // ← GraphQL возвращает ID как строку
   name: string
   russian: string
   kind: "tv" | "movie" | "ova" | "ona" | "special"
-  aired_on: string
-  image?: { original: string; preview: string; x96: string; x48: string }
+  airedOn?: { year: number }  // ← GraphQL возвращает объект
+  poster?: {
+    originalUrl: string  // ← высокое качество
+    mainUrl: string      // ← среднее качество
+  }
   description?: string
 }
 

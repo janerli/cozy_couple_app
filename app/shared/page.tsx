@@ -19,7 +19,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { useApp, SharedMediaItem, SharedGameItem, GamePlatform } from "@/lib/app-context"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
-
 // ===================
 // TYPES & CONSTANTS
 // ===================
@@ -82,18 +81,12 @@ interface KinopoiskMovie {
 }
 
 interface ShikimoriAnime {
-  id: number; name: string; russian: string; kind: "tv" | "movie"
-  image?: { original: string; preview: string }
-  description?: string; aired_on?: string
+  id: string; name: string; russian: string; kind: "tv" | "movie"
+  poster?: { originalUrl: string; mainUrl: string }
+  description?: string; airedOn?: { year: number }
 }
 
 type SearchResult = KinopoiskMovie | ShikimoriAnime
-
-const getShikimoriImage = (image: ShikimoriAnime['image']) => {
-  if (!image) return ""
-  const path = image.preview || image.original || ""
-  return path.startsWith('/') ? `https://shikimori.io${path}` : path
-}
 
 // ===================
 // ADD SHARED MEDIA DIALOG
@@ -117,10 +110,35 @@ function AddSharedMediaDialog() {
     setIsSearching(true)
     setShowResults(true)
     try {
-      const endpoint = searchSource === "kinopoisk" ? "/api/search-movie" : "/api/search-anime"
-      const res = await fetch(`${endpoint}?query=${encodeURIComponent(searchInput)}`)
-      const data = await res.json()
-      setSearchResults(searchSource === "kinopoisk" ? (data.docs || []) : (data || []))
+      if (searchSource === "kinopoisk") {
+        const res = await fetch(`/api/search-movie?query=${encodeURIComponent(searchInput)}`)
+        const data = await res.json()
+        setSearchResults(data.docs || [])
+      } else {
+        const graphqlQuery = {
+          query: `
+            query SearchAnime($search: String!) {
+              animes(search: $search, limit: 10) {
+                id
+                name
+                russian
+                kind
+                airedOn { year }
+                description
+                poster { originalUrl mainUrl }
+              }
+            }
+          `,
+          variables: { search: searchInput }
+        }
+        const res = await fetch('https://shikimori.io/api/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'User-Agent': 'OurCozyTracker/1.0' },
+          body: JSON.stringify(graphqlQuery)
+        })
+        const data = await res.json()
+        setSearchResults(data.data?.animes || [])
+      }
     } catch { setSearchResults([]) }
     finally { setIsSearching(false) }
   }
@@ -145,16 +163,23 @@ function AddSharedMediaDialog() {
       let description = cleanDescription(anime.description || "")
       if (!description) {
         try {
-          const res = await fetch(`https://shikimori.io/api/animes/${anime.id}`)
+          const detailQuery = {
+            query: `query GetAnime($id: ID!) { anime(id: $id) { description } }`,
+            variables: { id: anime.id }
+          }
+          const res = await fetch('https://shikimori.io/api/graphql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(detailQuery)
+          })
           const detail = await res.json()
-          description = cleanDescription(detail.description || "")
+          description = cleanDescription(detail.data?.anime?.description || "")
         } catch {}
       }
-      const poster = getShikimoriImage(anime.image)
       setFormData({
         ...formData,
         title: anime.russian || anime.name,
-        poster,
+        poster: anime.poster?.originalUrl || anime.poster?.mainUrl || "",
         description,
         type: anime.kind === "movie" ? "anime-movie" : "anime",
         externalId: anime.id.toString(),
@@ -203,7 +228,7 @@ function AddSharedMediaDialog() {
 
   const getYear = (item: SearchResult) => searchSource === "kinopoisk"
     ? (item as KinopoiskMovie).year?.toString() || ""
-    : (item as ShikimoriAnime).aired_on?.slice(0, 4) || ""
+    : (item as ShikimoriAnime).airedOn?.year?.toString() || ""
 
   const getTypeLabel = (item: SearchResult) => searchSource === "kinopoisk"
     ? ((item as KinopoiskMovie).type === "movie" ? "Фильм" : "Сериал")
@@ -237,12 +262,12 @@ function AddSharedMediaDialog() {
               <div className="relative w-full mt-2 bg-background border rounded-xl shadow-lg max-h-80 md:max-h-96 overflow-auto z-10">
                 {isSearching ? <div className="p-6 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> :
                  searchResults.length > 0 ? searchResults.map((item) => {
-                   const poster = searchSource === "kinopoisk" ? (item as KinopoiskMovie).poster?.url : getShikimoriImage((item as ShikimoriAnime).image)
+                   const poster = searchSource === "kinopoisk" ? (item as KinopoiskMovie).poster?.url : (item as ShikimoriAnime).poster?.originalUrl || (item as ShikimoriAnime).poster?.mainUrl
                    const title = searchSource === "kinopoisk" ? (item as KinopoiskMovie).name : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name
                    return (
                      <div key={item.id} className="p-4 hover:bg-muted cursor-pointer flex items-start gap-4 border-b last:border-0"
                        onClick={() => handleSelectItem(item)}>
-                       {poster && !poster.includes('missing') ? <img src={poster} alt={title} className="w-14 h-20 md:w-16 md:h-24 object-cover rounded-lg shadow-sm" />
+                       {poster ? <img src={poster} alt={title} className="w-14 h-20 md:w-16 md:h-24 object-cover rounded-lg shadow-sm" />
                          : <div className="w-14 h-20 md:w-16 md:h-24 bg-muted rounded-lg flex items-center justify-center"><Film className="w-6 h-6 text-muted-foreground" /></div>}
                        <div className="flex-1"><p className="font-medium text-base md:text-lg">{title}</p><p className="text-sm text-muted-foreground">{getYear(item)} • {getTypeLabel(item)}</p></div>
                      </div>)
