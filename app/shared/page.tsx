@@ -92,7 +92,7 @@ type SearchResult = KinopoiskMovie | ShikimoriAnime
 const getShikimoriImage = (image: ShikimoriAnime['image']) => {
   if (!image) return ""
   const path = image.preview || image.original || ""
-  return path.startsWith('/') ? `https://shikimori.one${path}` : path
+  return path.startsWith('/') ? `https://shikimori.io${path}` : path
 }
 
 // ===================
@@ -145,7 +145,7 @@ function AddSharedMediaDialog() {
       let description = cleanDescription(anime.description || "")
       if (!description) {
         try {
-          const res = await fetch(`https://shikimori.one/api/animes/${anime.id}`)
+          const res = await fetch(`https://shikimori.io/api/animes/${anime.id}`)
           const detail = await res.json()
           description = cleanDescription(detail.description || "")
         } catch {}
