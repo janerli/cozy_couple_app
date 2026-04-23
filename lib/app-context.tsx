@@ -218,83 +218,100 @@ const createDefaultUsers = async () => {
   // ============================================
   // ЗАГРУЗКА МЕДИА
   // ============================================
-  const loadMediaItems = async () => {
-    const { data } = await supabase
-      .from("personal_media")
-      .select(`
-        id, status, user_rating, current_season, current_episode, added_at, user_id,
-        content:content_id (title_ru, title_en, poster_url, description, content_type)
-      `)
+const loadMediaItems = async () => {
+  const { data } = await supabase
+    .from("personal_media")
+    .select(`
+      id, status, user_rating, current_season, current_episode, added_at, user_id,
+      content:content_id (title_ru, title_en, poster_url, description, content_type)
+    `)
 
-    if (data) {
-      setMediaItems(data.map((item: any) => ({
-        id: item.id,
-        title: item.content?.title_ru || item.content?.title_en || "Без названия",
-        poster: item.content?.poster_url || "",
-        description: item.content?.description,
-        type: mapContentType(item.content?.content_type),
-        status: mapPersonalStatus(item.status),
-        rating: item.user_rating,
-        currentSeason: item.current_season,
-        currentEpisode: item.current_episode,
-        addedAt: new Date(item.added_at),
-        userId: item.user_id,
-      })))
-    }
+  if (data) {
+    const mapped = data.map((item: any) => ({
+      id: item.id,
+      title: item.content?.title_ru || item.content?.title_en || "Без названия",
+      poster: item.content?.poster_url || "",
+      description: item.content?.description,
+      type: mapContentType(item.content?.content_type),
+      status: mapPersonalStatus(item.status),
+      rating: item.user_rating,
+      currentSeason: item.current_season,
+      currentEpisode: item.current_episode,
+      addedAt: new Date(item.added_at),
+      userId: item.user_id,
+    }))
+    
+    console.log('✅ Загружено personal_media:', mapped.length)
+    setMediaItems(mapped)
+  } else {
+    console.log('⚠️ personal_media: data is null')
+    setMediaItems([])
   }
+}
 
-  const loadSharedMediaItems = async () => {
-    const { data } = await supabase
-      .from("shared_media")
-      .select(`
+const loadSharedMediaItems = async () => {
+  const { data } = await supabase
+    .from("shared_media")
+    .select(`
       id, status, current_season, current_episode, added_at, added_by, notes,
       content:content_id (title_ru, title_en, poster_url, description, content_type),
       user_ratings:shared_media_user(*)
     `)
 
-    if (data) {
-      setSharedMediaItems(data.map((item: any) => ({
-        id: item.id,
-        title: item.content?.title_ru || item.content?.title_en || "Без названия",
-        poster: item.content?.poster_url || "",
-        description: item.content?.description,
-        type: mapContentType(item.content?.content_type),
-        status: mapSharedStatus(item.status),
-        currentSeason: item.current_season,
-        currentEpisode: item.current_episode,
-        addedAt: new Date(item.added_at),
-        addedByUserId: item.added_by,
-        note: item.notes,
-        userRatings: item.user_ratings || [],
-      })))
-    }
+  if (data) {
+    const mapped = data.map((item: any) => ({
+      id: item.id,
+      title: item.content?.title_ru || item.content?.title_en || "Без названия",
+      poster: item.content?.poster_url || "",
+      description: item.content?.description,
+      type: mapContentType(item.content?.content_type),
+      status: mapSharedStatus(item.status),
+      currentSeason: item.current_season,
+      currentEpisode: item.current_episode,
+      addedAt: new Date(item.added_at),
+      addedByUserId: item.added_by,
+      note: item.notes,
+      userRatings: item.user_ratings || [],
+    }))
+    
+    console.log('✅ Загружено shared_media:', mapped.length)
+    setSharedMediaItems(mapped)
+  } else {
+    console.log('⚠️ shared_media: data is null')
+    setSharedMediaItems([])  // ← явно устанавливаем пустой массив
   }
-
-  const loadSharedGameItems = async () => {
-    const { data } = await supabase
-      .from("shared_games")
-      .select(`
+}
+const loadSharedGameItems = async () => {
+  const { data } = await supabase
+    .from("shared_games")
+    .select(`
       id, status, added_at, added_by, notes, platforms,
       content:content_id (title_ru, title_en, poster_url, description, genres),
       user_ratings:shared_games_user(*)
     `)
 
-    if (data) {
-      setSharedGameItems(data.map((item: any) => ({
-        id: item.id,
-        title: item.content?.title_ru || item.content?.title_en || "Без названия",
-        cover: item.content?.poster_url || "",
-        description: item.content?.description,
-        platforms: item.platforms || [],
-        genres: item.content?.genres || [],
-        status: mapGameStatus(item.status),
-        addedAt: new Date(item.added_at),
-        addedByUserId: item.added_by,
-        note: item.notes,
-        userRatings: item.user_ratings || [],
-      })))
-    }
+  if (data) {
+    const mapped = data.map((item: any) => ({
+      id: item.id,
+      title: item.content?.title_ru || item.content?.title_en || "Без названия",
+      cover: item.content?.poster_url || "",
+      description: item.content?.description,
+      platforms: item.platforms || [],
+      genres: item.content?.genres || [],
+      status: mapGameStatus(item.status),
+      addedAt: new Date(item.added_at),
+      addedByUserId: item.added_by,
+      note: item.notes,
+      userRatings: item.user_ratings || [],
+    }))
+    
+    console.log('✅ Загружено shared_games:', mapped.length)
+    setSharedGameItems(mapped)
+  } else {
+    console.log('⚠️ shared_games: data is null')
+    setSharedGameItems([])  // ← явно устанавливаем пустой массив
   }
+}
 
   const loadWishlistItems = async () => {
     const { data } = await supabase.from("wishlist").select("*")
