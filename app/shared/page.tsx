@@ -1188,6 +1188,11 @@ export default function SharedPage() {
   const [gameSortBy, setGameSortBy] = useState<SortBy>("date")
   const [mediaSearchQuery, setMediaSearchQuery] = useState("")
 
+   useEffect(() => {
+    console.log('🔍 sharedMediaItems:', sharedMediaItems.length, sharedMediaItems)
+    console.log('🔍 sharedGameItems:', sharedGameItems.length, sharedGameItems)
+  }, [sharedMediaItems, sharedGameItems])
+
   const mediaStats = useMemo(() => ({
     "will-watch": sharedMediaItems.filter(m => m.status === "will-watch").length,
     watching: sharedMediaItems.filter(m => m.status === "watching").length,

@@ -186,14 +186,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const createDefaultUsers = async () => {
-    const defaultUsers = [
-      { id: USER_IDS.YOU, username: "Ты", avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Kitty", bio: "Люблю уютные вечера", favorite_genres: ["Аниме", "Романтика"] },
-      { id: USER_IDS.PARTNER, username: "Партнёр", avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bear", bio: "Люблю игры и фильмы", favorite_genres: ["Фантастика", "Триллер"] },
-    ]
-    await supabase.from("profiles").upsert(defaultUsers)
+const createDefaultUsers = async () => {
+  // Проверяем, есть ли уже пользователи
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id")
+    .in("id", [USER_IDS.YOU, USER_IDS.PARTNER])
+  
+  // Если оба существуют — ничего не делаем
+  if (existing && existing.length === 2) {
     await loadUsers()
+    return
   }
+  
+  // Создаём только отсутствующих
+  const usersToCreate = []
+  if (!existing?.find(u => u.id === USER_IDS.YOU)) {
+    usersToCreate.push({ id: USER_IDS.YOU, username: "Ты", avatar_url: "🦊", bio: "", favorite_genres: [] })
+  }
+  if (!existing?.find(u => u.id === USER_IDS.PARTNER)) {
+    usersToCreate.push({ id: USER_IDS.PARTNER, username: "Партнёр", avatar_url: "🐻", bio: "", favorite_genres: [] })
+  }
+  
+  if (usersToCreate.length > 0) {
+    await supabase.from("profiles").upsert(usersToCreate)
+  }
+  
+  await loadUsers()
+}
 
   // ============================================
   // ЗАГРУЗКА МЕДИА
