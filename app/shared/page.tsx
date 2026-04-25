@@ -812,22 +812,24 @@ function AddGameDialog() {
     setShowResults(false); setSearchResults([])
   }
 
-  const saveToSupabase = async () => {
-    const supabase = createClient()
-    const { data: content, error: contentError } = await supabase
-      .from("content").upsert({
-        external_id: formData.externalId || Date.now().toString(), content_type: "game",
-        title_ru: formData.title, poster_url: formData.cover || defaultCovers[0],
-        description: formData.description || null, platforms: formData.platforms,
-        genres: formData.genres.split(",").map(g => g.trim()), updated_at: new Date(),
-      }, { onConflict: "external_id, content_type" }).select().single()
-    if (contentError) throw contentError
-    const { error: sharedError } = await supabase.from("shared_games").insert({
-      content_id: content.id, added_by: activeUserId, status: "planning",
-    })
-    if (sharedError) throw sharedError
-    return content
-  }
+const saveToSupabase = async () => {
+  const supabase = createClient()
+  const { data: content, error: contentError } = await supabase
+    .from("content").upsert({
+      external_id: formData.externalId || Date.now().toString(), content_type: "game",
+      title_ru: formData.title, poster_url: formData.cover || defaultCovers[0],
+      description: formData.description || null, platforms: formData.platforms,
+      genres: formData.genres.split(",").map(g => g.trim()), updated_at: new Date(),
+    }, { onConflict: "external_id, content_type" }).select().single()
+  if (contentError) throw contentError
+  
+  // 🔥 ИСПРАВЛЕНО: status: "planned" вместо "planning"
+  const { error: sharedError } = await supabase.from("shared_games").insert({
+    content_id: content.id, added_by: activeUserId, status: "planned",
+  })
+  if (sharedError) throw sharedError
+  return content
+}
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) return
