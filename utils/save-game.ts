@@ -14,7 +14,7 @@ export async function saveGameToDatabase(gameData: any, userId: string) {
       title_en: gameData.name,
       poster_url: gameData.background_image,
       description: gameData.description_raw,
-      year: new Date(gameData.released).getFullYear(),
+      year: gameData.released ? new Date(gameData.released).getFullYear() : null,
       platforms: gameData.platforms?.map((p: any) => p.platform.name) || [],
       genres: gameData.genres?.map((g: any) => g.name) || [],
       updated_at: new Date(),

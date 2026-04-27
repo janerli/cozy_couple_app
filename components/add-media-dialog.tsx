@@ -65,10 +65,9 @@ interface ShikimoriAnime {
 
 type SearchResult = KinopoiskMovie | ShikimoriAnime
 
-const getShikimoriImage = (image: ShikimoriAnime['image']) => {
-  if (!image) return ""
-  const path = image.preview || image.original || ""
-  return path.startsWith('/') ? `https://shikimori.io${path}` : path
+const getShikimoriImage = (poster: ShikimoriAnime['poster']) => {
+  if (!poster) return ""
+  return poster.originalUrl || poster.mainUrl || ""
 }
 
 export function AddMediaDialog() {
@@ -137,7 +136,7 @@ export function AddMediaDialog() {
       })
     } else {
       const anime = item as ShikimoriAnime
-      const poster = getShikimoriImage(anime.image)
+      const poster = getShikimoriImage(anime.poster)
       setFormData({
         ...formData,
         title: anime.russian || anime.name,
@@ -153,8 +152,7 @@ export function AddMediaDialog() {
 
   const getYear = (item: SearchResult): string => {
     if (searchSource === "kinopoisk") return (item as KinopoiskMovie).year?.toString() || ""
-    const aired = (item as ShikimoriAnime).aired_on
-    return aired ? new Date(aired).getFullYear().toString() : ""
+    return (item as ShikimoriAnime).airedOn?.year?.toString() || ""
   }
 
   const getTypeLabel = (item: SearchResult): string => {
@@ -184,7 +182,7 @@ export function AddMediaDialog() {
 
     if (contentError) throw contentError
 
-    const { error: personalError } = await supabase
+    const { data: personalData, error: personalError } = await supabase
       .from("personal_media")
       .insert({
         user_id: activeUserId,
@@ -195,16 +193,18 @@ export function AddMediaDialog() {
         current_episode: hasEpisodes(formData.type) ? formData.currentEpisode : null,
         notes: null,
       })
+      .select()
+      .single()
 
     if (personalError) throw personalError
-    return content
+    return personalData.id as string
   }
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) return
 
     try {
-      await saveToSupabase()
+      const mediaId = await saveToSupabase()
       addMediaItem({
         title: formData.title,
         poster: formData.poster || defaultPosters[0],
@@ -216,7 +216,7 @@ export function AddMediaDialog() {
         currentEpisode: hasEpisodes(formData.type) ? formData.currentEpisode : undefined,
         watchedTogether: formData.watchedTogether,
         userId: activeUserId,
-      })
+      }, mediaId)
 
       setFormData({
         title: "", poster: "", description: "", type: "movie", status: "planned",
@@ -321,7 +321,7 @@ export function AddMediaDialog() {
                     {searchResults.map((item) => {
                       const poster = searchSource === "kinopoisk"
                         ? (item as KinopoiskMovie).poster?.url
-                        : getShikimoriImage((item as ShikimoriAnime).image)
+                        : getShikimoriImage((item as ShikimoriAnime).poster)
                       const title = searchSource === "kinopoisk"
                         ? (item as KinopoiskMovie).name
                         : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name

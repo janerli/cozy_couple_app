@@ -111,24 +111,39 @@ function AddGameDialog() {
         genres: formData.genres.split(",").map(g => g.trim()), updated_at: new Date(),
       }, { onConflict: "external_id, content_type" }).select().single()
     if (contentError) throw contentError
-    const { error: sharedError } = await supabase.from("shared_games").insert({
-      content_id: content.id, added_by: activeUserId, status: "planning",
-    })
+    const { data: shared, error: sharedError } = await supabase.from("shared_games").insert({
+      content_id: content.id, added_by: activeUserId, status: "planned",
+    }).select().single()
     if (sharedError) throw sharedError
-    return content
+    return shared
   }
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) return
     try {
-      await saveToSupabase()
-      addSharedGameItem({
-        title: formData.title, cover: formData.cover || defaultCovers[0],
-        description: formData.description || undefined,
-        platforms: formData.platforms.length ? formData.platforms : ["pc"],
-        genres: formData.genres ? formData.genres.split(",").map(g => g.trim()) : undefined,
-        status: "planning", addedByUserId: activeUserId,
-      })
+      const savedGame = await saveToSupabase()
+      const supabase = createClient()
+      const { data: fullItem } = await supabase
+        .from("shared_games")
+        .select(`*, content:content_id (title_ru, title_en, poster_url, description, genres)`)
+        .eq("id", savedGame.id)
+        .single()
+
+      if (fullItem) {
+        addSharedGameItem({
+          id: fullItem.id,
+          title: fullItem.content?.title_ru || formData.title,
+          cover: fullItem.content?.poster_url || formData.cover || defaultCovers[0],
+          description: fullItem.content?.description || formData.description || undefined,
+          platforms: formData.platforms.length ? formData.platforms : ["pc"],
+          genres: fullItem.content?.genres || (formData.genres ? formData.genres.split(",").map((g: string) => g.trim()) : undefined),
+          status: "planning",
+          addedByUserId: activeUserId,
+          addedAt: new Date(fullItem.added_at),
+          note: fullItem.notes || undefined,
+          userRatings: [],
+        })
+      }
       setFormData({ title: "", cover: "", description: "", platforms: [], genres: "", externalId: "" })
       setSearchInput(""); setOpen(false)
     } catch { alert("Ошибка при сохранении") }

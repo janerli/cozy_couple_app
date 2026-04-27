@@ -107,7 +107,7 @@ type AppContextType = {
   partnerUser: User
   isLoading: boolean
   mediaItems: MediaItem[]
-  addMediaItem: (item: Omit<MediaItem, "id" | "addedAt">) => Promise<void>
+  addMediaItem: (item: Omit<MediaItem, "id" | "addedAt">, id?: string) => Promise<void>
   updateMediaItem: (id: string, updates: Partial<MediaItem>) => Promise<void>
   deleteMediaItem: (id: string) => Promise<void>
   sharedMediaItems: SharedMediaItem[]
@@ -116,7 +116,7 @@ type AppContextType = {
   updateSharedMediaUserRating: (sharedMediaId: string, userId: string, rating: number | null, reaction: string | null) => Promise<void>
   deleteSharedMediaItem: (id: string) => Promise<void>
   sharedGameItems: SharedGameItem[]
-  addSharedGameItem: (item: Omit<SharedGameItem, "id" | "addedAt">) => Promise<void>
+  addSharedGameItem: (item: SharedGameItem) => void
   updateSharedGameItem: (id: string, updates: Partial<SharedGameItem>) => Promise<void>
   updateSharedGameUserRating: (sharedGameId: string, userId: string, rating: number | null, reaction: string | null) => Promise<void>
   deleteSharedGameItem: (id: string) => Promise<void>
@@ -365,8 +365,8 @@ const loadSharedGameItems = async () => {
   // ============================================
   // CRUD ОПЕРАЦИИ
   // ============================================
-  const addMediaItem = async (item: Omit<MediaItem, "id" | "addedAt">) => {
-    const newItem: MediaItem = { ...item, id: `temp-${Date.now()}`, addedAt: new Date() }
+  const addMediaItem = async (item: Omit<MediaItem, "id" | "addedAt">, id?: string) => {
+    const newItem: MediaItem = { ...item, id: id ?? `temp-${Date.now()}`, addedAt: new Date() }
     setMediaItems(prev => [newItem, ...prev])
   }
 
@@ -460,7 +460,7 @@ const loadSharedGameItems = async () => {
           ...item,
           userRatings: [
             ...otherRatings,
-            { shared_media_id: sharedMediaId, user_id: userId, user_rating: rating, reaction }
+            { id: '', shared_media_id: sharedMediaId, user_id: userId, user_rating: rating, reaction, watched_at: null }
           ]
         }
       })
@@ -475,9 +475,8 @@ const loadSharedGameItems = async () => {
     }
   }
 
-  const addSharedGameItem = async (item: Omit<SharedGameItem, "id" | "addedAt">) => {
-    const newItem: SharedGameItem = { ...item, id: `temp-${Date.now()}`, addedAt: new Date() }
-    setSharedGameItems(prev => [newItem, ...prev])
+  const addSharedGameItem = (item: SharedGameItem) => {
+    setSharedGameItems(prev => [item, ...prev])
   }
 
   const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
@@ -546,7 +545,7 @@ const loadSharedGameItems = async () => {
           ...item,
           userRatings: [
             ...otherRatings,
-            { shared_game_id: sharedGameId, user_id: userId, user_rating: rating, reaction }
+            { id: '', shared_game_id: sharedGameId, user_id: userId, user_rating: rating, reaction, completed_at: null }
           ]
         }
       })
