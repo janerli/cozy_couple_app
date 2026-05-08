@@ -1244,7 +1244,7 @@ const filteredMedia = useMemo(() => {
   // Сортировка
   items.sort((a, b) => 
     mediaSortBy === "date" 
-      ? new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime() 
+      ? new Date(b.updatedAt || b.addedAt).getTime() - new Date(a.updatedAt || a.addedAt).getTime()
       : mediaSortBy === "rating" 
         ? ((b.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0) - (a.userRatings?.find(r => r.user_id === users[0]?.id)?.user_rating || 0)) 
         : a.title.localeCompare(b.title)

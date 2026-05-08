@@ -50,6 +50,7 @@ export type SharedMediaItem = {
   note?: string
   // 🔥 Добавляем оценки пользователей
   userRatings?: SharedMediaUserRating[]
+  updatedAt?: Date
 }
 
 // Новый тип для индивидуальных оценок
@@ -253,7 +254,7 @@ const loadSharedMediaItems = async () => {
   const { data } = await supabase
     .from("shared_media")
     .select(`
-      id, status, current_season, current_episode, added_at, added_by, notes,
+      id, status, current_season, current_episode, added_at, updated_at, added_by, notes,
       content:content_id (title_ru, title_en, poster_url, description, content_type),
       user_ratings:shared_media_user(*)
     `)
@@ -272,6 +273,7 @@ const loadSharedMediaItems = async () => {
       addedByUserId: item.added_by,
       note: item.notes,
       userRatings: item.user_ratings || [],
+      updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
     }))
     
     console.log('✅ Загружено shared_media:', mapped.length)
