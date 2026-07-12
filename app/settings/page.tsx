@@ -104,7 +104,7 @@ export default function SettingsPage() {
         transition={{ delay: 0.1 }}
       >
         <Card className="soft-shadow dark:neon-glow overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 py-4">
             <CardTitle className="flex items-center gap-2">
               <User className="w-5 h-5" />
               Профиль
@@ -257,7 +257,7 @@ export default function SettingsPage() {
         transition={{ delay: 0.2 }}
       >
         <Card className="soft-shadow dark:neon-glow overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 py-4">
             <CardTitle className="flex items-center gap-2">
               <Palette className="w-5 h-5" />
               Внешний вид
@@ -306,7 +306,7 @@ export default function SettingsPage() {
         transition={{ delay: 0.3 }}
       >
         <Card className="soft-shadow dark:neon-glow overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 py-4">
             <CardTitle className="flex items-center gap-2">
               <Bell className="w-5 h-5" />
               Уведомления
@@ -331,7 +331,7 @@ export default function SettingsPage() {
         transition={{ delay: 0.4 }}
       >
         <Card className="soft-shadow dark:neon-glow overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 py-4">
             <CardTitle className="flex items-center gap-2">
               <Link2 className="w-5 h-5" />
               Связь с партнёром

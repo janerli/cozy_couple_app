@@ -224,7 +224,7 @@ export default function HomePage() {
         {/* What to Watch Together */}
         <motion.section variants={itemVariants}>
           <Card className="soft-shadow dark:neon-glow border-2 border-primary/20 overflow-hidden h-full">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 py-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Heart className="w-5 h-5 text-primary" />
                 Что посмотрим?
@@ -310,7 +310,7 @@ export default function HomePage() {
         {/* What to Play Together */}
         <motion.section variants={itemVariants}>
           <Card className="soft-shadow dark:neon-glow border-2 border-accent/20 overflow-hidden h-full">
-            <CardHeader className="bg-gradient-to-r from-accent/10 to-primary/10">
+            <CardHeader className="bg-gradient-to-r from-accent/10 to-primary/10 py-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Gamepad2 className="w-5 h-5 text-accent" />
                 Во что поиграем?
