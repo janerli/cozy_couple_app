@@ -713,7 +713,7 @@ const loadSharedGameItems = async () => {
     const supabase = createClient()
     if (item.isRelationshipStart) await clearOtherRelationshipStarts(supabase)
 
-    const { data } = await supabase.from("events").insert({
+    const { data, error } = await supabase.from("events").insert({
       title: item.title,
       event_date: item.eventDate,
       is_recurring: item.isRecurring,
@@ -722,21 +722,24 @@ const loadSharedGameItems = async () => {
       created_by: item.createdByUserId,
     }).select().single()
 
-    if (data) {
-      setEvents(prev => [{
-        id: data.id, title: data.title, eventDate: data.event_date,
-        isRecurring: data.is_recurring, isRelationshipStart: data.is_relationship_start,
-        icon: data.icon || undefined, createdByUserId: data.created_by,
-        createdAt: new Date(data.created_at),
-      }, ...prev])
+    if (error) {
+      console.error("Add event error:", error)
+      throw error
     }
+
+    setEvents(prev => [{
+      id: data.id, title: data.title, eventDate: data.event_date,
+      isRecurring: data.is_recurring, isRelationshipStart: data.is_relationship_start,
+      icon: data.icon || undefined, createdByUserId: data.created_by,
+      createdAt: new Date(data.created_at),
+    }, ...prev])
   }
 
   const updateEvent = async (id: string, updates: Partial<EventItem>) => {
     const supabase = createClient()
     if (updates.isRelationshipStart) await clearOtherRelationshipStarts(supabase, id)
 
-    await supabase.from("events").update({
+    const { error } = await supabase.from("events").update({
       title: updates.title,
       event_date: updates.eventDate,
       is_recurring: updates.isRecurring,
@@ -744,12 +747,21 @@ const loadSharedGameItems = async () => {
       icon: updates.icon,
     }).eq("id", id)
 
+    if (error) {
+      console.error("Update event error:", error)
+      throw error
+    }
+
     setEvents(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
   }
 
   const deleteEvent = async (id: string) => {
     const supabase = createClient()
-    await supabase.from("events").delete().eq("id", id)
+    const { error } = await supabase.from("events").delete().eq("id", id)
+    if (error) {
+      console.error("Delete event error:", error)
+      throw error
+    }
     setEvents(prev => prev.filter(item => item.id !== id))
   }
 

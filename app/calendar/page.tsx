@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Trash2, Edit2, CalendarHeart, Check } from "lucide-react"
+import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -119,16 +120,20 @@ function AddEventDialog() {
 
   const handleSubmit = async () => {
     if (!formData.title.trim() || !formData.eventDate) return
-    await addEvent({
-      title: formData.title,
-      eventDate: formData.eventDate,
-      isRecurring: formData.isRecurring,
-      isRelationshipStart: formData.isRelationshipStart,
-      icon: formData.icon,
-      createdByUserId: activeUserId,
-    })
-    setFormData(emptyForm)
-    setOpen(false)
+    try {
+      await addEvent({
+        title: formData.title,
+        eventDate: formData.eventDate,
+        isRecurring: formData.isRecurring,
+        isRelationshipStart: formData.isRelationshipStart,
+        icon: formData.icon,
+        createdByUserId: activeUserId,
+      })
+      setFormData(emptyForm)
+      setOpen(false)
+    } catch {
+      toast.error("Ошибка при сохранении. Попробуй ещё раз.")
+    }
   }
 
   return (
@@ -172,14 +177,18 @@ function EventRow({ item, index }: { item: EventItem; index: number }) {
 
   const handleSave = async () => {
     if (!formData.title.trim() || !formData.eventDate) return
-    await updateEvent(item.id, {
-      title: formData.title,
-      eventDate: formData.eventDate,
-      isRecurring: formData.isRecurring,
-      isRelationshipStart: formData.isRelationshipStart,
-      icon: formData.icon,
-    })
-    setIsEditing(false)
+    try {
+      await updateEvent(item.id, {
+        title: formData.title,
+        eventDate: formData.eventDate,
+        isRecurring: formData.isRecurring,
+        isRelationshipStart: formData.isRelationshipStart,
+        icon: formData.icon,
+      })
+      setIsEditing(false)
+    } catch {
+      toast.error("Ошибка при сохранении. Попробуй ещё раз.")
+    }
   }
 
   return (
@@ -220,7 +229,7 @@ function EventRow({ item, index }: { item: EventItem; index: number }) {
               <Button size="sm" variant="ghost" className="rounded-full h-9 w-9 p-0" onClick={() => setIsEditing(true)}>
                 <Edit2 className="w-4 h-4" />
               </Button>
-              <Button size="sm" variant="ghost" className="rounded-full h-9 w-9 p-0 text-destructive hover:text-destructive" onClick={() => deleteEvent(item.id)}>
+              <Button size="sm" variant="ghost" className="rounded-full h-9 w-9 p-0 text-destructive hover:text-destructive" onClick={() => deleteEvent(item.id).catch(() => toast.error("Не удалось удалить. Попробуй ещё раз."))}>
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
