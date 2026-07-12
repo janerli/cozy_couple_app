@@ -3,7 +3,7 @@ import { Nunito, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppProvider } from "@/lib/app-context"
-import { Header } from "@/components/header"
+import { AppGate } from "@/components/app-gate"
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
@@ -59,11 +59,7 @@ export default function RootLayout({
       <body className={`${nunito.variable} ${geistMono.variable} font-sans antialiased min-h-screen`}>
         <ThemeProvider defaultTheme="cozy" storageKey="cozy-theme">
           <AppProvider>
-            <Header />
-
-            <main className="container mx-auto px-4 py-6">
-              {children}
-            </main>
+            <AppGate>{children}</AppGate>
             <Toaster />
           </AppProvider>
         </ThemeProvider>
