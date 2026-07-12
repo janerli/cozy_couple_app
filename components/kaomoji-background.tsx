@@ -38,7 +38,7 @@ export function KaomojiBackground() {
       {positions.map((pos, i) => (
         <span
           key={i}
-          className={`absolute font-medium text-primary/10 dark:text-primary/[0.08] ${pos.size}`}
+          className={`absolute font-medium text-primary/25 dark:text-primary/20 ${pos.size}`}
           style={{ top: pos.top, left: pos.left, transform: `rotate(${pos.rotate}deg)` }}
         >
           {kaomojiList[i % kaomojiList.length]}
