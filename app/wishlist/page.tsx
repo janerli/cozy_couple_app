@@ -267,7 +267,7 @@ function WishlistCard({
         layout
       >
         <Card className={cn(
-          "overflow-hidden soft-shadow dark:neon-glow group cursor-pointer",
+          "overflow-hidden soft-shadow dark:neon-glow group cursor-pointer py-0 gap-0",
           isReserved && !isOwner && "opacity-60"
         )}>
           <div className="relative aspect-square bg-muted" onClick={() => setIsViewing(true)}>

@@ -63,7 +63,7 @@ export function GameCard({ item, index }: GameCardProps) {
         transition={{ delay: index * 0.05 }}
         layout
       >
-        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
+        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer py-0 gap-0">
           <PosterCard
             aspect="3/4"
             image={item.cover}

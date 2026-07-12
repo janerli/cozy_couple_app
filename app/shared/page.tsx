@@ -271,7 +271,7 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
         transition={{ delay: index * 0.05 }}
         layout
       >
-        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
+        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer py-0 gap-0">
           <PosterCard
             image={item.poster}
             alt={item.title}
@@ -668,7 +668,7 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
         transition={{ delay: index * 0.05 }}
         layout
       >
-        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer">
+        <Card className="overflow-hidden soft-shadow dark:neon-glow group cursor-pointer py-0 gap-0">
           <PosterCard
             aspect="3/4"
             image={item.cover}
