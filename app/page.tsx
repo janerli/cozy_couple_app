@@ -410,7 +410,7 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <Card className="overflow-hidden soft-shadow hover:scale-105 transition-transform cursor-pointer group">
+                <Card className="overflow-hidden soft-shadow hover:scale-105 transition-transform cursor-pointer group py-0 gap-0">
                   <div className="relative aspect-[2/3]">
                     <img
                       src={item.poster}
@@ -443,7 +443,7 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: (currentlyWatchingShared.length + index) * 0.1 }}
               >
-                <Card className="overflow-hidden soft-shadow hover:scale-105 transition-transform cursor-pointer group">
+                <Card className="overflow-hidden soft-shadow hover:scale-105 transition-transform cursor-pointer group py-0 gap-0">
                   <div className="relative aspect-[2/3]">
                     <img
                       src={item.cover}
