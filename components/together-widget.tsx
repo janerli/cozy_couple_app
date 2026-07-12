@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Heart, Sparkles, Cat } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { parseLocalDate } from "@/lib/dates"
 
 interface TogetherWidgetProps {
   startDate: string // "2024-02-14"
@@ -15,7 +16,7 @@ export function TogetherWidget({ startDate, className }: TogetherWidgetProps) {
   const [showSparkle, setShowSparkle] = useState(false)
 
   useEffect(() => {
-    const start = new Date(startDate)
+    const start = parseLocalDate(startDate)
     const today = new Date()
     const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
     setDays(diff)

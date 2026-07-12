@@ -3,24 +3,28 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
-import { Moon, Sparkles, Home, Library, Gift, Settings, ListVideo } from "lucide-react"
+import { Moon, Sparkles, Home, Library, Gift, Settings, ListVideo, CalendarHeart } from "lucide-react"
+import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { useApp } from "@/lib/app-context"
 import { UserAvatar } from "@/components/user-avatar"
+import { TogetherWidget } from "@/components/together-widget"
 
 const navItems = [
   { href: "/", label: "Главная", icon: Home },
   { href: "/shared", label: "Общий список", icon: ListVideo },
   { href: "/library", label: "Медиатека", icon: Library },
   { href: "/wishlist", label: "Вишлист", icon: Gift },
+  { href: "/calendar", label: "Календарь", icon: CalendarHeart },
   { href: "/settings", label: "Настройки", icon: Settings },
 ]
 
 export function Header() {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
-  const { users, activeUserId, setActiveUserId } = useApp()
+  const { users, activeUserId, setActiveUserId, events } = useApp()
+  const relationshipStart = useMemo(() => events.find((e) => e.isRelationshipStart)?.eventDate, [events])
 
   return (
     <motion.header
@@ -41,6 +45,10 @@ export function Header() {
             <span className="hidden sm:inline">Любимость</span>
           </motion.div>
         </Link>
+
+        {relationshipStart && (
+          <TogetherWidget startDate={relationshipStart} className="hidden lg:inline-flex" />
+        )}
 
         {/* Navigation - Desktop */}
         <nav className="hidden md:flex items-center gap-1">

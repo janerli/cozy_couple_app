@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { parseLocalDate } from "@/lib/dates"
 
 interface DaysCounterProps {
   startDate: string
@@ -13,7 +14,7 @@ export function DaysCounter({ startDate, className }: DaysCounterProps) {
   const [days, setDays] = useState(0)
 
   useEffect(() => {
-    const start = new Date(startDate)
+    const start = parseLocalDate(startDate)
     const today = new Date()
     const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
     setDays(diff)

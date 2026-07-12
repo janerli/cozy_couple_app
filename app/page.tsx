@@ -66,7 +66,8 @@ const platformLabels: Record<string, string> = {
 }
 
 export default function HomePage() {
-  const { activeUser, partnerUser, users, sharedMediaItems, sharedGameItems, mediaItems } = useApp()
+  const { activeUser, partnerUser, users, sharedMediaItems, sharedGameItems, mediaItems, events } = useApp()
+  const relationshipStart = useMemo(() => events.find((e) => e.isRelationshipStart)?.eventDate, [events])
   const [randomMediaPick, setRandomMediaPick] = useState<SharedMediaItem | null>(null)
   const [showMediaPick, setShowMediaPick] = useState(false)
   const [randomGamePick, setRandomGamePick] = useState<SharedGameItem | null>(null)
@@ -209,6 +210,12 @@ export default function HomePage() {
               <span className="text-primary font-medium">{activity}</span>
             </p>
           </>
+        )}
+
+        {relationshipStart && (
+          <div className="mt-4 flex justify-center">
+            <DaysCounter startDate={relationshipStart} />
+          </div>
         )}
       </motion.section>
 

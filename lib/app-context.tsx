@@ -102,6 +102,17 @@ export type GameItem = {
   userId: string
 }
 
+export type EventItem = {
+  id: string
+  title: string
+  eventDate: string
+  isRecurring: boolean
+  isRelationshipStart: boolean
+  icon?: string
+  createdByUserId: string
+  createdAt: Date
+}
+
 export type WishlistItem = {
   id: string
   name: string
@@ -145,6 +156,10 @@ type AppContextType = {
   addWishlistItem: (item: Omit<WishlistItem, "id">) => Promise<void>
   updateWishlistItem: (id: string, updates: Partial<WishlistItem>) => Promise<void>
   deleteWishlistItem: (id: string) => Promise<void>
+  events: EventItem[]
+  addEvent: (item: Omit<EventItem, "id" | "createdAt">) => Promise<void>
+  updateEvent: (id: string, updates: Partial<EventItem>) => Promise<void>
+  deleteEvent: (id: string) => Promise<void>
   updateUser: (id: string, updates: Partial<User>) => Promise<void>
 }
 
@@ -171,6 +186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sharedMediaItems, setSharedMediaItems] = useState<SharedMediaItem[]>([])
   const [sharedGameItems, setSharedGameItems] = useState<SharedGameItem[]>([])
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([])
+  const [events, setEvents] = useState<EventItem[]>([])
 
   const supabase = createClient()
 
@@ -190,6 +206,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadSharedMediaItems(),
       loadSharedGameItems(),
       loadWishlistItems(),
+      loadEvents(),
     ])
     setIsLoading(false)
   }
@@ -370,6 +387,22 @@ const loadSharedGameItems = async () => {
         userId: item.user_id,
         category: item.category || (item.is_gift_idea ? "date-idea" : "gift"),
         status: item.status || "active",
+      })))
+    }
+  }
+
+  const loadEvents = async () => {
+    const { data } = await supabase.from("events").select("*")
+    if (data) {
+      setEvents(data.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        eventDate: item.event_date,
+        isRecurring: item.is_recurring,
+        isRelationshipStart: item.is_relationship_start,
+        icon: item.icon || undefined,
+        createdByUserId: item.created_by,
+        createdAt: new Date(item.created_at),
       })))
     }
   }
@@ -669,6 +702,57 @@ const loadSharedGameItems = async () => {
     setWishlistItems(prev => prev.filter(item => item.id !== id))
   }
 
+  const clearOtherRelationshipStarts = async (supabase: ReturnType<typeof createClient>, exceptId?: string) => {
+    let query = supabase.from("events").update({ is_relationship_start: false }).eq("is_relationship_start", true)
+    if (exceptId) query = query.neq("id", exceptId)
+    await query
+    setEvents(prev => prev.map(e => (e.id === exceptId ? e : { ...e, isRelationshipStart: false })))
+  }
+
+  const addEvent = async (item: Omit<EventItem, "id" | "createdAt">) => {
+    const supabase = createClient()
+    if (item.isRelationshipStart) await clearOtherRelationshipStarts(supabase)
+
+    const { data } = await supabase.from("events").insert({
+      title: item.title,
+      event_date: item.eventDate,
+      is_recurring: item.isRecurring,
+      is_relationship_start: item.isRelationshipStart,
+      icon: item.icon || null,
+      created_by: item.createdByUserId,
+    }).select().single()
+
+    if (data) {
+      setEvents(prev => [{
+        id: data.id, title: data.title, eventDate: data.event_date,
+        isRecurring: data.is_recurring, isRelationshipStart: data.is_relationship_start,
+        icon: data.icon || undefined, createdByUserId: data.created_by,
+        createdAt: new Date(data.created_at),
+      }, ...prev])
+    }
+  }
+
+  const updateEvent = async (id: string, updates: Partial<EventItem>) => {
+    const supabase = createClient()
+    if (updates.isRelationshipStart) await clearOtherRelationshipStarts(supabase, id)
+
+    await supabase.from("events").update({
+      title: updates.title,
+      event_date: updates.eventDate,
+      is_recurring: updates.isRecurring,
+      is_relationship_start: updates.isRelationshipStart,
+      icon: updates.icon,
+    }).eq("id", id)
+
+    setEvents(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
+  }
+
+  const deleteEvent = async (id: string) => {
+    const supabase = createClient()
+    await supabase.from("events").delete().eq("id", id)
+    setEvents(prev => prev.filter(item => item.id !== id))
+  }
+
   const updateUser = async (id: string, updates: Partial<User>) => {
     const supabase = createClient()
     await supabase.from("profiles").update({
@@ -704,6 +788,7 @@ const loadSharedGameItems = async () => {
         sharedMediaItems, addSharedMediaItem, updateSharedMediaItem, deleteSharedMediaItem,
         sharedGameItems, addSharedGameItem, updateSharedGameItem, deleteSharedGameItem,
         wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem,
+        events, addEvent, updateEvent, deleteEvent,
         updateUser, updateSharedMediaUserRating,
         updateSharedGameUserRating,
       }}
