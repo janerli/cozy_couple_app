@@ -98,8 +98,8 @@ export function GameCard({ item, index }: GameCardProps) {
             }
           />
 
-          <div className="p-3">
-            <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
+          <div className="p-4">
+            <h3 className="font-medium text-sm truncate mb-2">{item.title}</h3>
             <div className="flex items-center justify-between gap-2">
               {item.rating ? (
                 <div className="flex items-center gap-0.5">

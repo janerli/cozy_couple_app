@@ -285,7 +285,7 @@ export default function LibraryPage() {
               key={`${mediaTab}-${filterType}-${mediaSortBy}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5"
             >
               {filteredMedia.length > 0 ? (
                 filteredMedia.map((item, index) => (
@@ -363,7 +363,7 @@ export default function LibraryPage() {
               key={`${gameTab}-${filterPlatform}-${gameSortBy}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5"
             >
               {filteredGames.length > 0 ? (
                 filteredGames.map((item, index) => (

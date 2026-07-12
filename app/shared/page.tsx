@@ -303,8 +303,8 @@ function SharedMediaCard({ item, index }: { item: SharedMediaItem; index: number
           />
 
           {/* Информация под постером */}
-          <div className="p-3">
-            <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
+          <div className="p-4">
+            <h3 className="font-medium text-sm truncate mb-2">{item.title}</h3>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
               <span className="truncate">{addedByUser?.name}</span>
@@ -700,8 +700,8 @@ function SharedGameCard({ item, index }: { item: SharedGameItem; index: number }
             }
           />
 
-          <div className="p-3">
-            <h3 className="font-medium text-sm truncate mb-1">{item.title}</h3>
+          <div className="p-4">
+            <h3 className="font-medium text-sm truncate mb-2">{item.title}</h3>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <UserAvatar avatar={addedByUser?.avatar || ''} name={addedByUser?.name || ''} size="sm" />
               <span className="truncate">{addedByUser?.name}</span>
@@ -1006,7 +1006,7 @@ const filteredMedia = useMemo(() => {
               <Select value={mediaSortBy} onValueChange={(v: SortBy) => setMediaSortBy(v)}><SelectTrigger className="w-40 rounded-full"><ArrowUpDown className="w-4 h-4 mr-2" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="date">По дате</SelectItem><SelectItem value="rating">По рейтингу</SelectItem><SelectItem value="title">По названию</SelectItem></SelectContent></Select>
               <AddSharedMediaDialog />
             </div>
-            <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
               {filteredMedia.length > 0 ? filteredMedia.map((item, i) => <SharedMediaCard key={item.id} item={item} index={i} />) : (
                 <div className="col-span-full py-16 text-center"><div className="text-6xl mb-4">🎬</div><h3 className="text-xl font-medium mb-2">Пока пусто</h3><p className="text-muted-foreground mb-4">Добавьте что-нибудь для совместного просмотра!</p><AddSharedMediaDialog /></div>
               )}
@@ -1026,7 +1026,7 @@ const filteredMedia = useMemo(() => {
               <Select value={gameSortBy} onValueChange={(v: SortBy) => setGameSortBy(v)}><SelectTrigger className="w-40 rounded-full"><ArrowUpDown className="w-4 h-4 mr-2" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="date">По дате</SelectItem><SelectItem value="rating">По рейтингу</SelectItem><SelectItem value="title">По названию</SelectItem></SelectContent></Select>
               <AddSharedGameDialog />
             </div>
-            <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
               {filteredGames.length > 0 ? filteredGames.map((item, i) => <SharedGameCard key={item.id} item={item} index={i} />) : (
                 <div className="col-span-full py-16 text-center"><div className="text-6xl mb-4">🎮</div><h3 className="text-xl font-medium mb-2">Пока пусто</h3><p className="text-muted-foreground mb-4">Добавьте игру для совместной игры!</p><AddSharedGameDialog /></div>
               )}
