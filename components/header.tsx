@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
-import { Moon, Sparkles, Home, Library, Gift, Settings, ListVideo, Gamepad2 } from "lucide-react"
+import { Moon, Sparkles, Home, Library, Gift, Settings, ListVideo } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { useApp } from "@/lib/app-context"
@@ -13,7 +13,6 @@ const navItems = [
   { href: "/", label: "Главная", icon: Home },
   { href: "/shared", label: "Общий список", icon: ListVideo },
   { href: "/library", label: "Медиатека", icon: Library },
-  { href: "/games", label: "Игры", icon: Gamepad2 },
   { href: "/wishlist", label: "Вишлист", icon: Gift },
   { href: "/settings", label: "Настройки", icon: Settings },
 ]

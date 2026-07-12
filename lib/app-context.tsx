@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { gameStatusToDb, gameStatusFromDb } from "@/lib/media-labels"
 
 // ============================================
 // ТИПЫ
@@ -88,6 +89,19 @@ export type SharedGameUserRating = {
   completed_at: string | null
 }
 
+export type GameItem = {
+  id: string
+  title: string
+  cover: string
+  description?: string
+  platforms: GamePlatform[]
+  genres?: string[]
+  status: "planning" | "playing" | "completed" | "dropped"
+  rating?: number
+  addedAt: Date
+  userId: string
+}
+
 export type WishlistItem = {
   id: string
   name: string
@@ -96,8 +110,10 @@ export type WishlistItem = {
   price?: number
   priority: "high" | "medium" | "low"
   reservedBy?: string
+  reservationNote?: string
   userId: string
   category: "gift" | "date-idea" | "place"
+  status?: "active" | "fulfilled"
 }
 
 type AppContextType = {
@@ -111,6 +127,10 @@ type AppContextType = {
   addMediaItem: (item: Omit<MediaItem, "id" | "addedAt">, id?: string) => Promise<void>
   updateMediaItem: (id: string, updates: Partial<MediaItem>) => Promise<void>
   deleteMediaItem: (id: string) => Promise<void>
+  gameItems: GameItem[]
+  addGameItem: (item: Omit<GameItem, "id" | "addedAt">, id?: string) => Promise<void>
+  updateGameItem: (id: string, updates: Partial<GameItem>) => Promise<void>
+  deleteGameItem: (id: string) => Promise<void>
   sharedMediaItems: SharedMediaItem[]
   addSharedMediaItem: (item: SharedMediaItem) => void  // ← убрать Omit и Promise
   updateSharedMediaItem: (id: string, updates: Partial<SharedMediaItem>) => Promise<void>
@@ -147,6 +167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [gameItems, setGameItems] = useState<GameItem[]>([])
   const [sharedMediaItems, setSharedMediaItems] = useState<SharedMediaItem[]>([])
   const [sharedGameItems, setSharedGameItems] = useState<SharedGameItem[]>([])
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([])
@@ -165,6 +186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await Promise.all([
       loadUsers(),
       loadMediaItems(),
+      loadGameItems(),
       loadSharedMediaItems(),
       loadSharedGameItems(),
       loadWishlistItems(),
@@ -241,12 +263,36 @@ const loadMediaItems = async () => {
       addedAt: new Date(item.added_at),
       userId: item.user_id,
     }))
-    
-    console.log('✅ Загружено personal_media:', mapped.length)
     setMediaItems(mapped)
   } else {
-    console.log('⚠️ personal_media: data is null')
     setMediaItems([])
+  }
+}
+
+const loadGameItems = async () => {
+  const { data } = await supabase
+    .from("personal_games")
+    .select(`
+      id, status, user_rating, platforms, notes, added_at, user_id,
+      content:content_id (title_ru, title_en, poster_url, description, genres)
+    `)
+
+  if (data) {
+    const mapped = data.map((item: any) => ({
+      id: item.id,
+      title: item.content?.title_ru || item.content?.title_en || "Без названия",
+      cover: item.content?.poster_url || "",
+      description: item.content?.description,
+      platforms: item.platforms || [],
+      genres: item.content?.genres || [],
+      status: mapGameStatus(item.status),
+      rating: item.user_rating,
+      addedAt: new Date(item.added_at),
+      userId: item.user_id,
+    }))
+    setGameItems(mapped)
+  } else {
+    setGameItems([])
   }
 }
 
@@ -275,12 +321,9 @@ const loadSharedMediaItems = async () => {
       userRatings: item.user_ratings || [],
       updatedAt: item.updated_at ? new Date(item.updated_at) : undefined,
     }))
-    
-    console.log('✅ Загружено shared_media:', mapped.length)
     setSharedMediaItems(mapped)
   } else {
-    console.log('⚠️ shared_media: data is null')
-    setSharedMediaItems([])  // ← явно устанавливаем пустой массив
+    setSharedMediaItems([])
   }
 }
 const loadSharedGameItems = async () => {
@@ -306,12 +349,9 @@ const loadSharedGameItems = async () => {
       note: item.notes,
       userRatings: item.user_ratings || [],
     }))
-    
-    console.log('✅ Загружено shared_games:', mapped.length)
     setSharedGameItems(mapped)
   } else {
-    console.log('⚠️ shared_games: data is null')
-    setSharedGameItems([])  // ← явно устанавливаем пустой массив
+    setSharedGameItems([])
   }
 }
 
@@ -326,8 +366,10 @@ const loadSharedGameItems = async () => {
         price: item.price,
         priority: item.priority || "medium",
         reservedBy: item.reserved_by,
+        reservationNote: item.reservation_note || undefined,
         userId: item.user_id,
-        category: item.is_gift_idea ? "date-idea" : "gift",
+        category: item.category || (item.is_gift_idea ? "date-idea" : "gift"),
+        status: item.status || "active",
       })))
     }
   }
@@ -357,12 +399,8 @@ const loadSharedGameItems = async () => {
     return map[status] || "will-watch"
   }
 
-  const mapGameStatus = (status: string): "planning" | "playing" | "completed" | "dropped" => {
-    const map: Record<string, "planning" | "playing" | "completed" | "dropped"> = {
-      "planned": "planning", "playing": "playing", "completed": "completed", "dropped": "dropped"
-    }
-    return map[status] || "planning"
-  }
+  const mapGameStatus = gameStatusFromDb
+  const mapGameStatusToDb = gameStatusToDb
 
   // ============================================
   // CRUD ОПЕРАЦИИ
@@ -394,6 +432,35 @@ const loadSharedGameItems = async () => {
     const { error } = await supabase.from("personal_media").delete().eq("id", id)
     if (!error) {
       setMediaItems(prev => prev.filter(item => item.id !== id))
+    }
+  }
+
+  const addGameItem = async (item: Omit<GameItem, "id" | "addedAt">, id?: string) => {
+    const newItem: GameItem = { ...item, id: id ?? `temp-${Date.now()}`, addedAt: new Date() }
+    setGameItems(prev => [newItem, ...prev])
+  }
+
+  const updateGameItem = async (id: string, updates: Partial<GameItem>) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("personal_games")
+      .update({
+        status: mapGameStatusToDb(updates.status),
+        user_rating: updates.rating || null,
+        platforms: updates.platforms || null,
+        updated_at: new Date(),
+      })
+      .eq("id", id)
+    if (!error) {
+      setGameItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
+    }
+  }
+
+  const deleteGameItem = async (id: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from("personal_games").delete().eq("id", id)
+    if (!error) {
+      setGameItems(prev => prev.filter(item => item.id !== id))
     }
   }
 
@@ -484,14 +551,6 @@ const loadSharedGameItems = async () => {
   const updateSharedGameItem = async (id: string, updates: Partial<SharedGameItem>) => {
     const supabase = createClient()
 
-    const mapGameStatusToDb = (status?: string) => {
-      if (status === "planning") return "planned"
-      if (status === "playing") return "playing"
-      if (status === "completed") return "completed"
-      if (status === "dropped") return "dropped"
-      return "planned"
-    }
-
     const { error } = await supabase
       .from("shared_games")
       .update({
@@ -571,15 +630,18 @@ const loadSharedGameItems = async () => {
       link: item.link,
       price: item.price,
       priority: item.priority,
-      is_gift_idea: item.category === "date-idea",
+      category: item.category,
+      status: "active",
     }).select().single()
 
     if (data) {
       setWishlistItems(prev => [{
         id: data.id, name: data.title, imageUrl: data.image_url,
         link: data.link, price: data.price, priority: data.priority,
-        reservedBy: data.reserved_by, userId: data.user_id,
-        category: data.is_gift_idea ? "date-idea" : "gift",
+        reservedBy: data.reserved_by, reservationNote: data.reservation_note || undefined,
+        userId: data.user_id,
+        category: data.category || "gift",
+        status: data.status || "active",
       }, ...prev])
     }
   }
@@ -592,7 +654,10 @@ const loadSharedGameItems = async () => {
       link: updates.link,
       price: updates.price,
       priority: updates.priority,
+      category: updates.category,
       reserved_by: updates.reservedBy,
+      reservation_note: updates.reservationNote,
+      status: updates.status,
     }).eq("id", id)
 
     setWishlistItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
@@ -635,6 +700,7 @@ const loadSharedGameItems = async () => {
       value={{
         users, activeUserId, setActiveUserId, activeUser, partnerUser, isLoading,
         mediaItems, addMediaItem, updateMediaItem, deleteMediaItem,
+        gameItems, addGameItem, updateGameItem, deleteGameItem,
         sharedMediaItems, addSharedMediaItem, updateSharedMediaItem, deleteSharedMediaItem,
         sharedGameItems, addSharedGameItem, updateSharedGameItem, deleteSharedGameItem,
         wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem,

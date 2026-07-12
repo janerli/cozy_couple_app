@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Star, Check, X, Search, Loader2, Film } from "lucide-react"
+import { Plus, Star, Check, X } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,6 +24,9 @@ import {
 } from "@/components/ui/select"
 import { MediaItem, useApp } from "@/lib/app-context"
 import { createClient } from "@/lib/supabase/client"
+import { upsertContent } from "@/lib/content"
+import { hasEpisodes } from "@/lib/media-labels"
+import { MediaSearchPicker, MediaPickResult } from "@/components/media-search-picker"
 import { cn } from "@/lib/utils"
 
 const defaultPosters = [
@@ -31,156 +35,38 @@ const defaultPosters = [
   "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=300&h=450&fit=crop",
 ]
 
-const searchSources = [
-  { value: "kinopoisk", label: "🎬 Фильмы/Сериалы" },
-  { value: "shikimori", label: "🌸 Аниме" },
-]
-
-function hasEpisodes(type: MediaItem["type"]): boolean {
-  return type === "series" || type === "anime" || type === "cartoon"
-}
-
-interface KinopoiskMovie {
-  id: number
-  name: string
-  alternativeName?: string
-  description?: string
-  poster?: { url: string }
-  year?: number
-  type: "movie" | "tv-series" | "anime" | "cartoon"
-}
-
-interface ShikimoriAnime {
-  id: string  // ← GraphQL возвращает ID как строку
-  name: string
-  russian: string
-  kind: "tv" | "movie" | "ova" | "ona" | "special"
-  airedOn?: { year: number }  // ← GraphQL возвращает объект
-  poster?: {
-    originalUrl: string  // ← высокое качество
-    mainUrl: string      // ← среднее качество
-  }
-  description?: string
-}
-
-type SearchResult = KinopoiskMovie | ShikimoriAnime
-
-const getShikimoriImage = (poster: ShikimoriAnime['poster']) => {
-  if (!poster) return ""
-  return poster.originalUrl || poster.mainUrl || ""
+const emptyForm = {
+  title: "",
+  poster: "",
+  description: "",
+  type: "movie" as MediaItem["type"],
+  status: "planned" as MediaItem["status"],
+  rating: 0,
+  currentSeason: 1,
+  currentEpisode: 1,
+  watchedTogether: false,
+  externalId: "",
 }
 
 export function AddMediaDialog() {
   const { addMediaItem, activeUserId } = useApp()
   const [open, setOpen] = useState(false)
+  const [formData, setFormData] = useState(emptyForm)
 
-  const [searchSource, setSearchSource] = useState<"kinopoisk" | "shikimori">("kinopoisk")
-  const [searchInput, setSearchInput] = useState("")
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [showResults, setShowResults] = useState(false)
-
-  const [formData, setFormData] = useState({
-    title: "",
-    poster: "",
-    description: "",
-    type: "movie" as MediaItem["type"],
-    status: "planned" as MediaItem["status"],
-    rating: 0,
-    currentSeason: 1,
-    currentEpisode: 1,
-    watchedTogether: false,
-    externalId: "",
-  })
-
-  const handleSearch = async () => {
-    if (searchInput.length < 2) {
-      setSearchResults([])
-      setShowResults(false)
-      return
-    }
-
-    setIsSearching(true)
-    setShowResults(true)
-
-    try {
-      const endpoint = searchSource === "kinopoisk" ? "/api/search-movie" : "/api/search-anime"
-      const res = await fetch(`${endpoint}?query=${encodeURIComponent(searchInput)}`)
-      const data = await res.json()
-      setSearchResults(searchSource === "kinopoisk" ? (data.docs || []) : (data || []))
-    } catch (error) {
-      console.error("Search failed:", error)
-      setSearchResults([])
-    } finally {
-      setIsSearching(false)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      handleSearch()
-    }
-  }
-
-  const handleSelectItem = (item: SearchResult) => {
-    if (searchSource === "kinopoisk") {
-      const movie = item as KinopoiskMovie
-      setFormData({
-        ...formData,
-        title: movie.name,
-        poster: movie.poster?.url || "",
-        description: movie.description || "",
-        type: movie.type === "movie" ? "movie" : movie.type === "tv-series" ? "series" : "movie",
-        externalId: movie.id.toString(),
-      })
-    } else {
-      const anime = item as ShikimoriAnime
-      const poster = getShikimoriImage(anime.poster)
-      setFormData({
-        ...formData,
-        title: anime.russian || anime.name,
-        poster: poster,
-        description: anime.description || "",
-        type: anime.kind === "movie" ? "anime-movie" : "anime",
-        externalId: anime.id.toString(),
-      })
-    }
-    setShowResults(false)
-    setSearchResults([])
-  }
-
-  const getYear = (item: SearchResult): string => {
-    if (searchSource === "kinopoisk") return (item as KinopoiskMovie).year?.toString() || ""
-    return (item as ShikimoriAnime).airedOn?.year?.toString() || ""
-  }
-
-  const getTypeLabel = (item: SearchResult): string => {
-    if (searchSource === "kinopoisk") {
-      return (item as KinopoiskMovie).type === "movie" ? "Фильм" : "Сериал"
-    }
-    return (item as ShikimoriAnime).kind === "movie" ? "Аниме-фильм" : "Аниме"
+  const handlePick = (result: MediaPickResult) => {
+    setFormData((prev) => ({ ...prev, ...result }))
   }
 
   const saveToSupabase = async () => {
     const supabase = createClient()
 
-    const { data: content, error: contentError } = await supabase
-      .from("content")
-      .upsert({
-        external_id: formData.externalId || Date.now().toString(),
-        content_type: formData.type,
-        title_ru: formData.title,
-        title_en: formData.title,
-        poster_url: formData.poster || defaultPosters[0],
-        description: formData.description || null,
-        year: null,
-        updated_at: new Date(),
-      }, { onConflict: "external_id, content_type" })
-      .select()
-      .single()
-
-    if (contentError) throw contentError
+    const content = await upsertContent(supabase, {
+      externalId: formData.externalId,
+      contentType: formData.type,
+      titleRu: formData.title,
+      poster: formData.poster || defaultPosters[0],
+      description: formData.description,
+    })
 
     const { data: personalData, error: personalError } = await supabase
       .from("personal_media")
@@ -218,30 +104,16 @@ export function AddMediaDialog() {
         userId: activeUserId,
       }, mediaId)
 
-      setFormData({
-        title: "", poster: "", description: "", type: "movie", status: "planned",
-        rating: 0, currentSeason: 1, currentEpisode: 1, watchedTogether: false, externalId: "",
-      })
-      setSearchInput("")
-      setSearchSource("kinopoisk")
+      setFormData(emptyForm)
       setOpen(false)
     } catch (error) {
       console.error("Submit error:", error)
-      alert("Ошибка при сохранении. Попробуй ещё раз.")
+      toast.error("Ошибка при сохранении. Попробуй ещё раз.")
     }
   }
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      setSearchInput("")
-      setSearchResults([])
-      setShowResults(false)
-      setSearchSource("kinopoisk")
-      setFormData({
-        title: "", poster: "", description: "", type: "movie", status: "planned",
-        rating: 0, currentSeason: 1, currentEpisode: 1, watchedTogether: false, externalId: "",
-      })
-    }
+    if (!newOpen) setFormData(emptyForm)
     setOpen(newOpen)
   }
 
@@ -259,117 +131,8 @@ export function AddMediaDialog() {
         </DialogHeader>
 
         <div className="space-y-5 py-4">
-          {/* Переключатель источника */}
-          <div className="flex gap-2 p-1 bg-muted rounded-full">
-            {searchSources.map((source) => (
-              <button
-                key={source.value}
-                type="button"
-                onClick={() => {
-                  setSearchSource(source.value as "kinopoisk" | "shikimori")
-                  setSearchInput("")
-                  setSearchResults([])
-                  setShowResults(false)
-                }}
-                className={cn(
-                  "flex-1 px-4 py-2.5 rounded-full text-sm md:text-base font-medium transition-all",
-                  searchSource === source.value
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {source.label}
-              </button>
-            ))}
-          </div>
+          <MediaSearchPicker onSelect={handlePick} />
 
-          {/* Поле поиска с кнопкой */}
-          <div className="space-y-2">
-            <Label className="text-base">Поиск *</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={searchSource === "kinopoisk"
-                    ? "Введите название фильма или сериала..."
-                    : "Введите название аниме..."}
-                  className="rounded-xl pl-10 pr-4 py-6 text-base"
-                />
-              </div>
-              <Button
-                onClick={handleSearch}
-                disabled={searchInput.length < 2 || isSearching}
-                className="rounded-xl px-6 py-6 text-base"
-              >
-                {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Найти"}
-              </Button>
-            </div>
-
-            {/* Выпадающий список */}
-            {showResults && (
-              <div className="relative w-full mt-2 bg-background border rounded-xl shadow-lg max-h-80 md:max-h-96 overflow-auto z-10">
-                {isSearching ? (
-                  <div className="p-6 text-center">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground mt-2">Ищем...</p>
-                  </div>
-                ) : searchResults.length > 0 ? (
-                  <div className="py-1">
-                    {searchResults.map((item) => {
-                      const poster = searchSource === "kinopoisk"
-                        ? (item as KinopoiskMovie).poster?.url
-                        : getShikimoriImage((item as ShikimoriAnime).poster)
-                      const title = searchSource === "kinopoisk"
-                        ? (item as KinopoiskMovie).name
-                        : (item as ShikimoriAnime).russian || (item as ShikimoriAnime).name
-
-                      return (
-                        <div
-                          key={item.id}
-                          className="p-4 hover:bg-muted cursor-pointer flex items-start gap-4 border-b last:border-0 transition-colors"
-                          onClick={() => handleSelectItem(item)}
-                        >
-                          {poster && !poster.includes('missing') ? (
-                            <img src={poster} alt={title} className="w-14 h-20 md:w-16 md:h-24 object-cover rounded-lg flex-shrink-0 shadow-sm" />
-                          ) : (
-                            <div className="w-14 h-20 md:w-16 md:h-24 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Film className="w-6 h-6 text-muted-foreground" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0 py-1">
-                            <p className="font-medium text-base md:text-lg truncate">{title}</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {getYear(item)} • {getTypeLabel(item)}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center">
-                    <p className="text-base text-muted-foreground">Ничего не найдено</p>
-                    <p className="text-sm text-muted-foreground mt-1">Попробуйте изменить запрос</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Выбранный элемент */}
-            {!showResults && formData.title && (
-              <div className="mt-3 p-3 bg-muted/50 rounded-xl">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Выбрано: <span className="font-medium text-foreground">{formData.title}</span>
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Форма редактирования */}
           {formData.title && (
             <>
               <div className="space-y-2">

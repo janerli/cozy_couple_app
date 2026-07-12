@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppProvider } from "@/lib/app-context"
 import { Header } from "@/components/header"
-import { TogetherWidget } from "@/components/together-widget"  // 🔥 ИМПОРТ
+import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
 const nunito = Nunito({ 
@@ -60,11 +60,11 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="cozy" storageKey="cozy-theme">
           <AppProvider>
             <Header />
-            
 
             <main className="container mx-auto px-4 py-6">
               {children}
             </main>
+            <Toaster />
           </AppProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === "production" && <Analytics />}

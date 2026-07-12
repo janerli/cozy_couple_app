@@ -10,8 +10,10 @@ import {
   Plus,
   ExternalLink,
   Trash2,
+  Edit2,
   Check,
   AlertCircle,
+  PartyPopper,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -210,14 +213,46 @@ function WishlistCard({
 }) {
   const { updateWishlistItem, deleteWishlistItem, activeUserId, users } = useApp()
   const [isViewing, setIsViewing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isReserving, setIsReserving] = useState(false)
+  const [reserveNote, setReserveNote] = useState("")
+  const [editData, setEditData] = useState({
+    name: item.name,
+    imageUrl: item.imageUrl,
+    link: item.link,
+    price: item.price?.toString() || "",
+    priority: item.priority,
+    category: item.category,
+  })
   const owner = users.find((u) => u.id === item.userId)
 
-  const handleReserve = () => {
-    if (item.reservedBy) {
-      updateWishlistItem(item.id, { reservedBy: undefined })
-    } else {
-      updateWishlistItem(item.id, { reservedBy: activeUserId })
-    }
+  const isFulfilled = item.status === "fulfilled"
+
+  const handleCancelReserve = () => {
+    updateWishlistItem(item.id, { reservedBy: undefined, reservationNote: undefined })
+  }
+
+  const handleConfirmReserve = () => {
+    updateWishlistItem(item.id, { reservedBy: activeUserId, reservationNote: reserveNote.trim() || undefined })
+    setReserveNote("")
+    setIsReserving(false)
+  }
+
+  const handleToggleFulfilled = () => {
+    updateWishlistItem(item.id, { status: isFulfilled ? "active" : "fulfilled" })
+  }
+
+  const handleSaveEdit = () => {
+    if (!editData.name.trim()) return
+    updateWishlistItem(item.id, {
+      name: editData.name,
+      imageUrl: editData.imageUrl || item.imageUrl,
+      link: editData.link,
+      price: editData.price ? parseFloat(editData.price) : undefined,
+      priority: editData.priority,
+      category: editData.category,
+    })
+    setIsEditing(false)
   }
 
   const isReserved = !!item.reservedBy
@@ -250,9 +285,9 @@ function WishlistCard({
             {/* Контент оверлея */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                   {item.link && (
-                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex-1">
+                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-[90px]">
                       <Button size="sm" variant="secondary" className="rounded-full w-full h-9 gap-1">
                         <ExternalLink className="w-3 h-3" />
                         Открыть
@@ -264,20 +299,41 @@ function WishlistCard({
                       size="sm"
                       variant={isReservedByMe ? "destructive" : "default"}
                       className="rounded-full h-9 px-4"
-                      onClick={handleReserve}
+                      onClick={() => (isReservedByMe ? handleCancelReserve() : setIsReserving(true))}
                     >
                       {isReservedByMe ? "Отменить" : "Зарезервировать"}
                     </Button>
                   )}
-                  {isOwner && (
+                  {!isOwner && isReservedByMe && (
                     <Button
                       size="sm"
-                      variant="destructive"
+                      variant={isFulfilled ? "secondary" : "default"}
                       className="rounded-full h-9 w-9 p-0"
-                      onClick={() => deleteWishlistItem(item.id)}
+                      onClick={handleToggleFulfilled}
+                      title={isFulfilled ? "Вернуть в активные" : "Отметить как куплено"}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <PartyPopper className="w-4 h-4" />
                     </Button>
+                  )}
+                  {isOwner && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-full h-9 w-9 p-0"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="rounded-full h-9 w-9 p-0"
+                        onClick={() => deleteWishlistItem(item.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -287,7 +343,7 @@ function WishlistCard({
             {isReserved && !isOwner && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                 <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
-                  Зарезервировано
+                  {isFulfilled ? "Куплено 🎉" : "Зарезервировано"}
                 </span>
               </div>
             )}
@@ -320,7 +376,7 @@ function WishlistCard({
               )}
               {isOwner && isReserved && (
                 <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Кто-то взял
+                  <Check className="w-3 h-3" /> {isFulfilled ? "Готово" : "Кто-то взял"}
                 </span>
               )}
             </div>
@@ -390,13 +446,21 @@ function WishlistCard({
         {isReserved && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
             <p className="text-amber-600 dark:text-amber-400 font-medium">
-              🎁 Зарезервировано{isOwner && isReservedByMe ? " тобой" : ""}
+              {isFulfilled ? "🎉 Куплено" : "🎁 Зарезервировано"}{!isOwner && isReservedByMe ? " тобой" : ""}
             </p>
+          </div>
+        )}
+        {!isOwner && isReservedByMe && item.reservationNote && (
+          <div>
+            <h3 className="font-semibold text-base mb-2">Твоя заметка</h3>
+            <div className="bg-muted/30 p-4 rounded-xl">
+              <p className="text-muted-foreground text-sm italic">"{item.reservationNote}"</p>
+            </div>
           </div>
         )}
       </div>
     </div>
-    
+
     <DialogFooter className="gap-2">
       <Button variant="outline" onClick={() => setIsViewing(false)} className="rounded-full px-6 py-5">
         Закрыть
@@ -408,13 +472,26 @@ function WishlistCard({
           </Button>
         </a>
       )}
+      {!isOwner && isReservedByMe && (
+        <Button
+          variant={isFulfilled ? "secondary" : "default"}
+          className="rounded-full px-6 py-5 gap-1"
+          onClick={handleToggleFulfilled}
+        >
+          <PartyPopper className="w-4 h-4" /> {isFulfilled ? "Вернуть в активные" : "Отметить куплено"}
+        </Button>
+      )}
       {!isOwner && (
         <Button
           variant={isReservedByMe ? "destructive" : "default"}
           className="rounded-full px-6 py-5"
           onClick={() => {
-            handleReserve()
-            setIsViewing(false)
+            if (isReservedByMe) {
+              handleCancelReserve()
+            } else {
+              setIsViewing(false)
+              setIsReserving(true)
+            }
           }}
         >
           {isReservedByMe ? "Отменить" : "Зарезервировать"}
@@ -423,16 +500,107 @@ function WishlistCard({
     </DialogFooter>
   </DialogContent>
 </Dialog>
+
+      {/* РЕЗЕРВ С ЗАМЕТКОЙ */}
+      <Dialog open={isReserving} onOpenChange={(o) => { setIsReserving(o); if (!o) setReserveNote("") }}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Зарезервировать «{item.name}»</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            <Label>Заметка для себя (необязательно)</Label>
+            <Textarea
+              value={reserveNote}
+              onChange={(e) => setReserveNote(e.target.value)}
+              placeholder="Например: нужен размер M, уже заказал(а)..."
+              className="rounded-xl resize-none"
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">{owner?.name} не увидит эту заметку.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReserving(false)} className="rounded-full">Отмена</Button>
+            <Button onClick={handleConfirmReserve} className="rounded-full">Зарезервировать</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* РЕДАКТИРОВАНИЕ */}
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Редактировать желание</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Название *</Label>
+              <Input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="rounded-xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Категория</Label>
+              <Select value={editData.category} onValueChange={(v: WishlistItem["category"]) => setEditData({ ...editData, category: v })}>
+                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {categoryOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <span className="flex items-center gap-2">
+                        <opt.icon className="w-4 h-4" />
+                        {opt.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Изображение (URL)</Label>
+              <Input value={editData.imageUrl} onChange={(e) => setEditData({ ...editData, imageUrl: e.target.value })} className="rounded-xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Ссылка на товар / место</Label>
+              <Input value={editData.link} onChange={(e) => setEditData({ ...editData, link: e.target.value })} className="rounded-xl" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Цена (опционально)</Label>
+                <Input type="number" value={editData.price} onChange={(e) => setEditData({ ...editData, price: e.target.value })} className="rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Приоритет</Label>
+                <Select value={editData.priority} onValueChange={(v: WishlistItem["priority"]) => setEditData({ ...editData, priority: v })}>
+                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="high">Очень хочу</SelectItem>
+                    <SelectItem value="medium">Хочу</SelectItem>
+                    <SelectItem value="low">Было бы неплохо</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditing(false)} className="rounded-full">Отмена</Button>
+            <Button onClick={handleSaveEdit} disabled={!editData.name.trim()} className="rounded-full">Сохранить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
+type StatusFilter = "active" | "fulfilled"
+
 export default function WishlistPage() {
   const { wishlistItems, users, activeUserId } = useApp()
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")
   const [userFilter, setUserFilter] = useState<UserFilter>("all")
 
+  const itemsByStatus = useMemo(() => {
+    return wishlistItems.filter((i) => (i.status || "active") === statusFilter)
+  }, [wishlistItems, statusFilter])
+
   const filteredItems = useMemo(() => {
-    let items = wishlistItems
+    let items = itemsByStatus
 
     if (categoryFilter !== "all") {
       items = items.filter((i) => i.category === categoryFilter)
@@ -443,16 +611,21 @@ export default function WishlistPage() {
     }
 
     return items
-  }, [wishlistItems, categoryFilter, userFilter])
+  }, [itemsByStatus, categoryFilter, userFilter])
+
+  const statusCounts = useMemo(() => ({
+    active: wishlistItems.filter((i) => (i.status || "active") === "active").length,
+    fulfilled: wishlistItems.filter((i) => i.status === "fulfilled").length,
+  }), [wishlistItems])
 
   const categoryCounts = useMemo(() => {
     return {
-      all: wishlistItems.length,
-      gift: wishlistItems.filter((i) => i.category === "gift").length,
-      "date-idea": wishlistItems.filter((i) => i.category === "date-idea").length,
-      place: wishlistItems.filter((i) => i.category === "place").length,
+      all: itemsByStatus.length,
+      gift: itemsByStatus.filter((i) => i.category === "gift").length,
+      "date-idea": itemsByStatus.filter((i) => i.category === "date-idea").length,
+      place: itemsByStatus.filter((i) => i.category === "place").length,
     }
-  }, [wishlistItems])
+  }, [itemsByStatus])
 
   return (
     <motion.div
@@ -487,6 +660,35 @@ export default function WishlistPage() {
             </p>
           </CardContent>
         </Card>
+      </motion.div>
+
+      {/* Status Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="flex gap-2 p-1 bg-muted rounded-full w-fit"
+      >
+        <button
+          onClick={() => setStatusFilter("active")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all whitespace-nowrap",
+            statusFilter === "active" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Активные
+          <span className="text-xs opacity-70">({statusCounts.active})</span>
+        </button>
+        <button
+          onClick={() => setStatusFilter("fulfilled")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all whitespace-nowrap",
+            statusFilter === "fulfilled" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Выполнено
+          <span className="text-xs opacity-70">({statusCounts.fulfilled})</span>
+        </button>
       </motion.div>
 
       {/* Category Tabs */}
