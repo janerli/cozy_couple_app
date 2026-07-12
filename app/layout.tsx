@@ -59,12 +59,14 @@ export default function RootLayout({
     <html lang="ru" className="bg-background" suppressHydrationWarning>
       <body className={`${nunito.variable} ${geistMono.variable} font-sans antialiased min-h-screen`}>
         <KaomojiBackground />
-        <ThemeProvider defaultTheme="cozy" storageKey="cozy-theme">
-          <AppProvider>
-            <AppGate>{children}</AppGate>
-            <Toaster />
-          </AppProvider>
-        </ThemeProvider>
+        <div className="relative z-10">
+          <ThemeProvider defaultTheme="cozy" storageKey="cozy-theme">
+            <AppProvider>
+              <AppGate>{children}</AppGate>
+              <Toaster />
+            </AppProvider>
+          </ThemeProvider>
+        </div>
         {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
