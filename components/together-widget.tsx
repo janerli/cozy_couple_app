@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Heart, Sparkles, Cat } from "lucide-react"
+import { motion } from "framer-motion"
+import { Heart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseLocalDate } from "@/lib/dates"
 
@@ -13,27 +13,13 @@ interface TogetherWidgetProps {
 
 export function TogetherWidget({ startDate, className }: TogetherWidgetProps) {
   const [days, setDays] = useState(0)
-  const [showSparkle, setShowSparkle] = useState(false)
 
   useEffect(() => {
     const start = parseLocalDate(startDate)
     const today = new Date()
     const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
     setDays(diff)
-    
-    // 🔥 Анимация при загрузке
-    setShowSparkle(true)
-    setTimeout(() => setShowSparkle(false), 2000)
   }, [startDate])
-
-  // Каждые 10 секунд показываем искорки
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setShowSparkle(true)
-      setTimeout(() => setShowSparkle(false), 1500)
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [])
 
   return (
     <motion.div
@@ -47,47 +33,12 @@ export function TogetherWidget({ startDate, className }: TogetherWidgetProps) {
         className
       )}
     >
-      {/* Искорки */}
-      <AnimatePresence>
-        {showSparkle && (
-          <>
-            <motion.div
-              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.5, 1, 0.5], x: -25, y: -25 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1 }}
-              className="absolute text-amber-400"
-            >
-              <Sparkles className="w-3 h-3" />
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.5, 1, 0.5], x: 25, y: -30 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1, delay: 0.2 }}
-              className="absolute text-pink-300"
-            >
-              <Sparkles className="w-2.5 h-2.5" />
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.5, 1, 0.5], x: -5, y: -35 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1, delay: 0.4 }}
-              className="absolute text-amber-300"
-            >
-              <Sparkles className="w-2 h-2" />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* 🔥 Котик слева */}
+      {/* Бьющееся сердечко слева */}
       <motion.div
-        animate={{ rotate: [0, -5, 5, 0] }}
-        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Cat className="w-5 h-5 text-pink-500 dark:text-pink-400" />
+        <Heart className="w-4 h-4 text-pink-500 fill-pink-500 dark:text-pink-400 dark:fill-pink-400" />
       </motion.div>
 
       {/* Текст */}
@@ -109,13 +60,14 @@ export function TogetherWidget({ startDate, className }: TogetherWidgetProps) {
          days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20) ? "дня" : "дней"}
       </span>
 
-      {/* 🔥 Бьющееся сердечко справа */}
-      <motion.div
+      {/* Каомодзи справа */}
+      <motion.span
         animate={{ scale: [1, 1.2, 1] }}
         transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        className="text-sm text-pink-500 dark:text-pink-400"
       >
-        <Heart className="w-4 h-4 text-pink-500 fill-pink-500 dark:text-pink-400 dark:fill-pink-400" />
-      </motion.div>
+        ♡(˃͈ ᵕ ˂͈ ༶ )
+      </motion.span>
     </motion.div>
   )
 }

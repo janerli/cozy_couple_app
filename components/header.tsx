@@ -41,8 +41,7 @@ export function Header() {
             whileTap={{ scale: 0.95 }}
             className="text-xl font-bold text-primary flex items-center gap-1"
           >
-            <span className="text-2xl">✨</span>
-            <span className="hidden sm:inline">Любимость</span>
+            <span>(=^･ω･^=)</span>
           </motion.div>
         </Link>
 

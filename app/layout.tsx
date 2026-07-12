@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AppProvider } from "@/lib/app-context"
 import { AppGate } from "@/components/app-gate"
 import { Toaster } from "@/components/ui/sonner"
+import { KaomojiBackground } from "@/components/kaomoji-background"
 import "./globals.css"
 
 const nunito = Nunito({ 
@@ -57,6 +58,7 @@ export default function RootLayout({
   return (
     <html lang="ru" className="bg-background" suppressHydrationWarning>
       <body className={`${nunito.variable} ${geistMono.variable} font-sans antialiased min-h-screen`}>
+        <KaomojiBackground />
         <ThemeProvider defaultTheme="cozy" storageKey="cozy-theme">
           <AppProvider>
             <AppGate>{children}</AppGate>

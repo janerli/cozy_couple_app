@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useApp, SharedMediaItem, SharedGameItem } from "@/lib/app-context"
 import Link from "next/link"
-import { DaysCounter } from "@/components/days-counter"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -66,8 +65,7 @@ const platformLabels: Record<string, string> = {
 }
 
 export default function HomePage() {
-  const { activeUser, partnerUser, users, sharedMediaItems, sharedGameItems, mediaItems, events } = useApp()
-  const relationshipStart = useMemo(() => events.find((e) => e.isRelationshipStart)?.eventDate, [events])
+  const { activeUser, partnerUser, users, sharedMediaItems, sharedGameItems, mediaItems } = useApp()
   const [randomMediaPick, setRandomMediaPick] = useState<SharedMediaItem | null>(null)
   const [showMediaPick, setShowMediaPick] = useState(false)
   const [randomGamePick, setRandomGamePick] = useState<SharedGameItem | null>(null)
@@ -210,12 +208,6 @@ export default function HomePage() {
               <span className="text-primary font-medium">{activity}</span>
             </p>
           </>
-        )}
-
-        {relationshipStart && (
-          <div className="mt-4 flex justify-center">
-            <DaysCounter startDate={relationshipStart} />
-          </div>
         )}
       </motion.section>
 
